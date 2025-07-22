@@ -15,3 +15,5 @@ rasterio
 # Utilities
 python-dotenv # To read the .env file
 requests      # For making API calls
+fiona         # To read the .gdb file
+pyyaml        # For reading the file names

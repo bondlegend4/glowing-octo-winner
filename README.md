@@ -6,3 +6,9 @@ An automated system to plan an agroforestry system.
 ```
 pip install -r requirements.txt
 ```
+
+# Run project
+
+```python
+python -m src.services.local_data_importer
+```
