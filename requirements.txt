@@ -1,0 +1,17 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+
+# Database & ORM
+sqlalchemy
+psycopg2-binary # PostgreSQL driver
+alembic       # For database migrations
+
+# Geospatial Analysis
+geopandas
+shapely
+rasterio
+
+# Utilities
+python-dotenv # To read the .env file
+requests      # For making API calls

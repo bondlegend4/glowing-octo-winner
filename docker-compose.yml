@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database with PostGIS Extension
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: agro-postgis
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgis-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Parse Server Backend
+  parse:
+    image: parseplatform/parse-server
+    container_name: agro-parse-server
+    environment:
+      - PARSE_SERVER_APPLICATION_ID=${PARSE_APP_ID}
+      - PARSE_SERVER_MASTER_KEY=${PARSE_MASTER_KEY}
+      - PARSE_SERVER_DATABASE_URI=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - PARSE_SERVER_MOUNT_PATH=/parse
+      - PARSE_SERVER_URL=http://localhost:1337/parse
+    ports:
+      - "1337:1337"
+    depends_on:
+      postgres:
+        condition: service_healthy # Waits for the healthcheck to pass
+    restart: unless-stopped
+
+  # Parse Dashboard UI
+  parse-dashboard:
+    image: parseplatform/parse-dashboard
+    container_name: agro-parse-dashboard
+    environment:
+      - PARSE_DASHBOARD_ALLOW_INSECURE_HTTP=1
+      - PARSE_DASHBOARD_SERVER_URL=http://localhost:1337/parse
+      - PARSE_DASHBOARD_APP_ID=${PARSE_APP_ID}
+      - PARSE_DASHBOARD_MASTER_KEY=${PARSE_MASTER_KEY}
+      - PARSE_DASHBOARD_APP_NAME=Agroforestry Platform
+      - PARSE_DASHBOARD_USER_ID=${PARSE_DASHBOARD_USER}
+      - PARSE_DASHBOARD_USER_PASSWORD=${PARSE_DASHBOARD_PASS}
+    ports:
+      - '4040:4040'
+    depends_on:
+      - parse
+    restart: unless-stopped
+
+volumes:
+  postgis-data:
+    # This named volume persists your database data across container restarts
