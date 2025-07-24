@@ -1,0 +1,38 @@
+@startuml core-functionality
+actor "User" as user
+participant "Frontend" as fe
+participant "Backend" as be
+database "PostGIS DB" as db
+participant "USGS API" as usgs
+
+skinparam sequenceMessageAlign center
+
+user -> fe: Selects a land parcel on the map
+activate fe
+
+fe -> be: GET /analyze?parcelId=123
+activate be
+
+be -> db: Query for parcel geometry, zoning, and indigenous plants
+activate db
+db --> be: Return parcel data
+deactivate db
+
+be -> usgs: GET /elevation?boundary=...
+activate usgs
+usgs --> be: Return DEM raster file
+deactivate usgs
+
+be -> be: Generate contour map from DEM
+be -> be: Calculate water flow & suggest earthworks
+be -> be: Develop permaculture plant guilds
+be -> be: Calculate project costs and profit projections
+
+be --> fe: Return full analysis (JSON)
+deactivate be
+
+fe -> fe: Render map with new layers, charts, and recommendations
+fe --> user: Display a complete agroforestry plan
+deactivate fe
+
+@enduml

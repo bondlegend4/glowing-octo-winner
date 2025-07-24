@@ -207,4 +207,6 @@ marimo/_lsp/
 __marimo__/
 
 #data should not be uoloaded
-data
+scrappy
+chromedriver-mac-arm64
+.DS_Store

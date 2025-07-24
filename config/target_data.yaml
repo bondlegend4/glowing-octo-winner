@@ -1,0 +1,23 @@
+# A list of datasets to be scraped from the NYS GIS Clearinghouse.
+# The scraper will search within the specified category for a dataset
+# containing the keywords in its title.
+
+- category: "water"
+  keywords: "Dams"
+  purpose: "dams"
+
+- category: "water"
+  keywords: "Unconsolidated Aquifers"
+  purpose: "hydrography_groundwater"
+
+- category: "parcels"
+  keywords: "Statewide Tax Parcels"
+  purpose: "parcels"
+  
+- category: "elevation"
+  keywords: "NYS DEM"
+  purpose: "elevation"
+
+- category: "boundaries"
+  keywords: "NYS Civil Boundaries"
+  purpose: "boundaries"

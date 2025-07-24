@@ -19,3 +19,7 @@ fiona         # To read the .gdb file
 pyyaml        # For reading the file names
 requests 
 tqdm
+
+#webscrapping
+selenium 
+webdriver-manager
