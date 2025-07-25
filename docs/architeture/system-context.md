@@ -1,3 +1,4 @@
+```mermaid
 graph TD
     subgraph "Automated Agroforestry Platform"
         direction LR
@@ -13,11 +14,16 @@ graph TD
 
     subgraph "External Systems"
         direction TB
-        ES1[USGS APIs<br/>(Elevation Data)]
-        ES2[State/County GIS<br/>(Zoning & Parcel Data)]
-        ES3[Real Estate APIs<br/>(Land for Sale)]
-        ES4[GBIF / USDA<br/>(Plant Databases)]
-        ES5[Grants.gov API<br/>(Federal Grants)]
+        ES1["USGS APIs
+        (Elevation Data)"]
+        ES2["State/County GIS
+        (Zoning & Parcel Data)"]
+        ES3["Real Estate APIs
+        (Land for Sale)"]
+        ES4["GBIF / USDA
+        (Plant Databases)"]
+        ES5["Grants.gov API
+        (Federal Grants)"]
     end
 
     U1 --> A
@@ -28,3 +34,4 @@ graph TD
     A --> ES3
     A --> ES4
     A --> ES5
+```

@@ -1,0 +1,44 @@
+@startuml backend component diagram
+
+skinparam rectangle {
+  roundCorner 10
+}
+skinparam database {
+  roundCorner 10
+}
+
+!define ICONURL https://raw.githubusercontent.com/tupadr3/plantuml-icon-font-sprites/v2.4.0
+!includeurl ICONURL/common.puml
+!includeurl ICONURL/devicons/python.puml
+!includeurl ICONURL/font-awesome-5/database.puml
+
+rectangle "Python Backend" <<Container>> {
+    rectangle "API Service" as api <<Component>> {
+      component "endpoints.py\n<size:10><$python></size>"
+    }
+    
+    rectangle "Analysis Orchestrator" as analysis_service <<Component>>
+
+    rectangle "Geospatial Processor" as processing_service <<Component>>
+    rectangle "Permaculture Engine" as permaculture_service <<Component>>
+    rectangle "Finance Engine" as finance_service <<Component>>
+
+}
+
+database "PostGIS DB" as db <<External>>
+cloud "External APIs" as external_apis <<External>>
+
+' Layout horizontally
+api -right-> analysis_service : Initiates Analysis
+
+' Other relationships
+analysis_service --> processing_service : Process Geospatial Data
+analysis_service --> permaculture_service : Design Permaculture Plan
+analysis_service --> finance_service : Calculate Costs & Profits
+
+processing_service --> db : Reads Parcel Data
+processing_service --> external_apis : Fetches DEM Data
+permaculture_service --> db : Reads Plant & Climate Data
+finance_service --> db : Reads Market Price Data
+
+@enduml

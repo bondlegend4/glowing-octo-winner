@@ -1,27 +1,40 @@
-@startuml conatiner-diagram
-!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+@startuml name
 
-Person(farmer, "Farmer/Land Owner")
-System_Ext(usgs, "USGS API", "Provides elevation data")
-System_Ext(regrid, "Regrid API", "Provides parcel & zoning data")
-System_Ext(gbif, "GBIF API", "Provides plant data")
-System_Ext(grants, "Grants.gov API", "Provides federal grant data")
-
-System_Boundary(c1, "Automated Agroforestry Platform") {
-    Container(frontend, "React Frontend", "JavaScript", "Provides the user interface and visualizations.")
-    Container(backend, "Python Backend", "FastAPI", "Handles business logic, analysis, and data processing.")
-    ContainerDb(database, "PostGIS Database", "PostgreSQL", "Stores all geospatial, project, and user data.")
-    Container(scraper, "Scrapy Spiders", "Python", "Periodically scrapes data from sources without APIs.")
+skinparam actorStyle awesome
+skinparam rectangle {
+  roundCorner 10
+}
+skinparam database {
+  roundCorner 10
 }
 
-Rel(farmer, frontend, "Uses")
-Rel(frontend, backend, "Makes API calls to", "JSON/HTTP")
+actor "Farmer/Land Owner" as farmer
 
-Rel(backend, database, "Reads from and writes to")
-Rel(backend, usgs, "Fetches elevation data from", "HTTP/API")
-Rel.right(backend, regrid, "Fetches parcel data from", "HTTP/API")
-Rel(backend, gbif, "Fetches plant data from", "HTTP/API")
-Rel(backend, grants, "Fetches grant data from", "HTTP/API")
-Rel(backend, scraper, "Triggers and retrieves data from")
+package "External Systems" {
+  cloud "USGS API" as usgs
+  cloud "Regrid API" as regrid
+  cloud "GBIF API" as gbif
+  cloud "Grants.gov API" as grants
+}
+
+
+rectangle "Automated Agroforestry Platform" <<System>> as Platform {
+    rectangle "React Frontend" as frontend <<Container>>
+    rectangle "Python Backend" as backend <<Container>>
+    database "PostGIS Database" as database <<Container>>
+    rectangle "Scrapy Spiders" as scraper <<Container>>
+}
+
+
+farmer --> frontend : Uses
+
+frontend --> backend : Makes API calls\n<size:10>[JSON/HTTP]</size>
+backend --> database : Reads/Writes
+
+backend --> usgs : Fetches elevation data\n<size:10>[HTTP/API]</size>
+backend --> regrid : Fetches parcel data\n<size:10>[HTTP/API]</size>
+backend --> gbif : Fetches plant data\n<size:10>[HTTP/API]</size>
+backend --> grants : Fetches grant data\n<size:10>[HTTP/API]</size>
+backend --> scraper : Triggers & Retrieves Data
 
 @enduml

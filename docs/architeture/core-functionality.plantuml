@@ -1,37 +1,104 @@
-@startuml core-functionality
+@startuml core-functional
+title Detailed Analysis Workflow
+
 actor "User" as user
 participant "Frontend" as fe
-participant "Backend" as be
+
+box "Backend" #LightBlue
+    participant "API Service" as api
+    participant "Analysis Orchestrator" as orchestrator
+    participant "Geospatial Processor" as processor
+    participant "Permaculture Engine" as permaculture
+    participant "Finance Engine" as finance
+    participant "Web Scraper" as scraper
+end box
+
 database "PostGIS DB" as db
-participant "USGS API" as usgs
+
+box "State-Level Resources" #Azure
+    participant "State Informational Webpages" as state_web
+    participant "State GIS API" as state_gis_api
+end box
+
+box "National-Level Resources" #LightGrey
+    participant "USGS API" as usgs_api
+    participant "GBIF API" as gbif_api
+    participant "Grants.gov Webpage" as grants_web
+end box
+
 
 skinparam sequenceMessageAlign center
 
 user -> fe: Selects a land parcel on the map
 activate fe
 
-fe -> be: GET /analyze?parcelId=123
-activate be
+fe -> api: GET /analyze?parcelId=123
+activate api
 
-be -> db: Query for parcel geometry, zoning, and indigenous plants
+api -> orchestrator: StartAnalysis(parcelId)
+activate orchestrator
+
+orchestrator -> db: GetParcelData(parcelId)
 activate db
-db --> be: Return parcel data
+db --> orchestrator: Parcel Geometry
 deactivate db
 
-be -> usgs: GET /elevation?boundary=...
-activate usgs
-usgs --> be: Return DEM raster file
-deactivate usgs
+orchestrator -> scraper: ScrapeZoningInfo(geometry)
+activate scraper
+scraper -> state_web: Request county zoning page
+state_web --> scraper: HTML content
+scraper --> orchestrator: Zoning Classification
+deactivate scraper
 
-be -> be: Generate contour map from DEM
-be -> be: Calculate water flow & suggest earthworks
-be -> be: Develop permaculture plant guilds
-be -> be: Calculate project costs and profit projections
+orchestrator -> processor: ProcessGeospatialData(geometry)
+activate processor
+processor -> usgs_api: GetElevationDEM(boundary)
+activate usgs_api
+usgs_api --> processor: DEM Raster File
+deactivate usgs_api
+note right of processor: Generate Contours,\nSlope, Aspect, & Water Flow
+processor --> orchestrator: Geospatial Analysis Layers
+deactivate processor
 
-be --> fe: Return full analysis (JSON)
-deactivate be
+orchestrator -> permaculture: DesignPlan(parcelId, geo_layers)
+activate permaculture
+permaculture -> state_gis_api: GetClimateData(location)
+activate state_gis_api
+state_gis_api --> permaculture: Hardiness Zone, Avg. Rainfall
+deactivate state_gis_api
+permaculture -> gbif_api: GetIndigenousPlants(location)
+activate gbif_api
+gbif_api --> permaculture: List of Native Plants
+deactivate gbif_api
+note right of permaculture: Create Plant Guilds,\nDesign Planting Zones,\nEstimate Time to Maturity
+permaculture --> orchestrator: Permaculture Plan & Timeline
+deactivate permaculture
 
-fe -> fe: Render map with new layers, charts, and recommendations
+orchestrator -> finance: CalculateEconomics(plan)
+activate finance
+finance -> db: GetMarketPrices(plan.products)
+activate db
+db --> finance: Current Market Price Data
+deactivate db
+finance -> scraper: ScrapeGrantOpportunities()
+activate scraper
+scraper -> grants_web: Search for relevant grants
+grants_web --> scraper: HTML content
+scraper --> finance: List of Potential Grants
+deactivate scraper
+note right of finance: Calculate Upfront Costs & Projections
+finance --> orchestrator: Financial Analysis & Grant List
+deactivate finance
+
+note over orchestrator: Aggregate all results into a\nsingle comprehensive report.
+
+orchestrator --> api: AnalysisReport
+deactivate orchestrator
+
+api --> fe: Full Analysis (JSON)
+deactivate api
+
+fe -> fe: Render map, charts, and recommendations
 fe --> user: Display a complete agroforestry plan
 deactivate fe
 
