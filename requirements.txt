@@ -23,3 +23,5 @@ tqdm
 #webscrapping
 selenium 
 webdriver-manager
+pathlib
+pytest
