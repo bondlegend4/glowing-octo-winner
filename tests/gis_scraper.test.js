@@ -25,7 +25,8 @@ describe('GIS Scraper Functions', () => {
     beforeEach(async () => {
         page = await browser.newPage();
         await page.goto('https://data.gis.ny.gov/search?categories=%2Fcategories%2Fwater', {
-            waitUntil: 'networkidle0'
+            waitUntil: 'networkidle0',
+            timeout: 60000
         });
         catalogHandle = await page.waitForSelector('arcgis-hub-catalog');
     });

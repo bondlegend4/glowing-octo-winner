@@ -65,7 +65,14 @@ export async function findCardOnPage(catalogHandle, cardTestId) {
  * @returns {Promise<string|null>}
  */
 export async function extractUrlFromCard(cardHandle) {
-    const linkHandle = await cardHandle.evaluateHandle(el => el.shadowRoot.querySelector('h3.title a'));
+    // FIX: Traverse the two nested shadow roots to find the link.
+    const linkHandle = await cardHandle.evaluateHandle(el => {
+        const hubCard = el.shadowRoot?.querySelector('arcgis-hub-card');
+        // The link is inside the hubCard's shadow root.
+        return hubCard?.shadowRoot?.querySelector('h3.title a');
+    });
+
+    if (!linkHandle.asElement()) return null; // Return null if the link isn't found
     return await linkHandle.evaluate(el => el.href);
 }
 
@@ -119,7 +126,6 @@ async function main() {
             console.log('❌ Could not find the URL for "Dams".');
             console.log('----------------------\n');
         }
-
     } catch (error) {
         console.error('An error occurred during scraping:', error);
     } finally {
