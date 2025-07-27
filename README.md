@@ -14,8 +14,12 @@ export BRAVE_BINARY_PATH="/Applications/Brave Browser.app/Contents/MacOS/Brave B
 
 # Run project
 ```python
-python -m src.services.local_data_importer
+python -m src.agroforestry.scraping.gis_scrapper
 ```
+
+# Run tests
+
+python -m pytest -v -s
 
 # Documentation 
 docs/                 # All project documentation

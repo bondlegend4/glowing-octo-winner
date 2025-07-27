@@ -1,5 +1,6 @@
 import os
 import pytest
+import time
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -7,15 +8,18 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
-# Helper functions from the scraper (can be moved to a shared utils file later)
-def expand_shadow_root(driver, element):
-    return driver.execute_script('return arguments[0].shadowRoot', element)
 
-def find_element_in_shadow_root(driver, root_element, css_selector):
-    shadow_root = expand_shadow_root(driver, root_element)
-    return shadow_root.find_element(By.CSS_SELECTOR, css_selector)
+# --- Import the functions directly from the scraper ---
+from src.agroforestry.scraping.gis_scrapper import (
+    find_element_in_shadow_root,
+    find_dataset_page_url,
+    extract_api_from_details_page,
+    construct_geojson_query_url
+)
 
+# --- Pytest Fixture ---
 @pytest.fixture(scope="module")
 def driver():
     options = Options()
@@ -29,59 +33,71 @@ def driver():
     if not browser_version:
         raise ValueError("BRAVE_VERSION environment variable not set.")
 
-    options.add_argument("--headless")
     options.add_argument("--start-maximized")
+    options.add_argument('log-level=1')
     service = Service(ChromeDriverManager(driver_version=browser_version).install())
     driver_instance = webdriver.Chrome(service=service, options=options)
+    driver_instance.implicitly_wait(5) # Add a small implicit wait
+
     yield driver_instance
+    print("\nTest run finished, closing browser.")
     driver_instance.quit()
+
+def test_extract_dams_api_url(driver):
+    """Tests if we can extract the final API url from a known dataset page."""
+    wait = WebDriverWait(driver, 20)
+    # This URL was found by the previous test
+    dataset_page_url = "https://data.gis.ny.gov/datasets/5a7d83359cc842e08711215408f5b55c"
+
+    api_url = extract_api_from_details_page(driver, wait, dataset_page_url)
+    assert api_url is not None
+    assert "FeatureServer" in api_url
+
+def test_construct_query_url():
+    """Tests the construction of the final GeoJSON query URL."""
+    base_url = "https://gisservices.its.ny.gov/arcgis/rest/services/NYS_Civil_Boundaries/FeatureServer"
+    expected = "https://gisservices.its.ny.gov/arcgis/rest/services/NYS_Civil_Boundaries/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=geojson"
+    assert construct_geojson_query_url(base_url) == expected
+    print("\n✅ Passed: GeoJSON query URL construction is correct.")
+
 
 def test_scraper_journey(driver):
     wait = WebDriverWait(driver, 20)
     start_url = "https://data.gis.ny.gov/search?categories=%2Fcategories%2Fwater&collection=dataset"
-    
-    # 1. Test: Can we reach the webpage?
+
+    # Step 1: Reach the webpage
+    print("\n--- Step 1: Navigating to page ---")
     driver.get(start_url)
-    assert "NYS GIS Clearinghouse" in driver.title
-    print("\n✅ Test 1 Passed: Webpage reached successfully.")
+    wait.until(EC.title_contains("NYS GIS Clearinghouse"))
+    print("✅ Passed: Webpage reached successfully.")
 
-    # 2. Test: Can we find the element right before the first shadow root?
+    # Step 2: Find the top-level host element
+    print("\n--- Step 2: Finding top-level shadow host ---")
     catalog_host = wait.until(EC.presence_of_element_located((By.TAG_NAME, 'arcgis-hub-catalog')))
+    time.sleep(1) # Add a small pause to prevent race condition
     assert catalog_host is not None
-    assert catalog_host.get_attribute("data-test") == "site-search-catalog"
-    print("✅ Test 2 Passed: Found <arcgis-hub-catalog> element.")
+    print("✅ Passed: Found <arcgis-hub-catalog> element.")
 
-    # 3. Test: Can we traverse the shadow roots to the results container?
+    # --- CORRECTED NESTED TRAVERSAL TEST ---
+    # Step 3: Find the gallery host INSIDE the catalog's shadow root
+    print("\n--- Step 3: Finding gallery host inside first shadow root ---")
     gallery_host = find_element_in_shadow_root(driver, catalog_host, 'arcgis-hub-gallery')
-    layout_list_host = find_element_in_shadow_root(driver, gallery_host, 'arcgis-hub-gallery-layout-list')
-    card_container = find_element_in_shadow_root(driver, layout_list_host, 'ul.card-container')
-    assert card_container is not None
-    assert card_container.get_attribute("data-test") == "result-container"
-    print("✅ Test 3 Passed: Traversed shadow DOM to find the card container.")
+    assert gallery_host is not None
+    print("✅ Passed: Found <arcgis-hub-gallery> element.")
 
-    # 4. Test: Can we find the list item holding the "Dams" data?
-    dams_card_host = card_container.find_element(By.CSS_SELECTOR, 'arcgis-hub-entity-card[data-test="Dams"]')
-    assert dams_card_host is not None
-    print("✅ Test 4 Passed: Found the list item for 'Dams'.")
+    # Step 4: Find a specific card inside the gallery's shadow root
+    print("\n--- Step 4: Finding a specific card ---")
+    item_card = find_element_in_shadow_root(driver, gallery_host, 'arcgis-hub-content-card[name="Dams"]')
+    assert item_card is not None
+    print("✅ Passed: Found the 'Dams' item card.")
 
-    # 5. Test: Can we find the link within the Dams card?
-    hub_card_host = find_element_in_shadow_root(driver, dams_card_host, 'arcgis-hub-card')
-    calcite_card = find_element_in_shadow_root(driver, hub_card_host, 'calcite-card')
-    link_element = calcite_card.find_element(By.CSS_SELECTOR, 'h3.title a')
-    dams_url = link_element.get_attribute('href')
-    assert "https://data.gis.ny.gov/maps/" in dams_url
-    print(f"✅ Test 5 Passed: Found Dams link: {dams_url}")
+#  --- Tests ---
+def test_find_dams_dataset_url(driver):
+    """Tests if we can find the specific URL for the 'Dams' dataset."""
+    wait = WebDriverWait(driver, 20)
+    start_url = "https://data.gis.ny.gov/search?categories=%2Fcategories%2Fwater"
+    keywords = "Dams"
 
-    # 6. Test: Can we follow the link and find the "View Full Details" button?
-    driver.get(dams_url)
-    details_button = wait.until(EC.element_to_be_clickable((By.LINK_TEXT, 'View Full Details')))
-    assert details_button.is_displayed()
-    details_url = details_button.get_attribute('href')
-    print(f"✅ Test 6 Passed: Found 'View Full Details' link: {details_url}")
-
-    # 7 & 8. Test: Can we follow the details link and find the final API URL?
-    driver.get(details_url)
-    api_link = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'a[data-test-id="item-api-link"]')))
-    final_api_url = api_link.get_attribute('href')
-    assert "arcgis/rest/services" in final_api_url
-    print(f"✅ Test 7 & 8 Passed: Successfully found final API URL: {final_api_url}")
+    page_url = find_dataset_page_url(driver, wait, start_url, keywords)
+    assert page_url is not None
+    assert "https://data.gis.ny.gov/datasets/" in page_url

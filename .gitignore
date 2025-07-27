@@ -210,3 +210,5 @@ __marimo__/
 scrappy
 chromedriver-mac-arm64
 .DS_Store
+
+node_modules
