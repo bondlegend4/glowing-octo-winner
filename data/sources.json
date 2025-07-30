@@ -1,0 +1,49 @@
+{
+    "sources": [
+        {
+            "id": "nys_dams",
+            "purpose": "infrastructure",
+            "state": "NY",
+            "source_type": "rest_api",
+            "origin_url": "https://data.gis.ny.gov/search?categories=%2Fcategories%2Fwater",
+            "search_term": "Dams",
+            "imported": false,
+            "selectors": {
+                "catalog_container": "arcgis-hub-catalog",
+                "gallery_card": {
+                    "query": "arcgis-hub-entity-card[data-test='{SEARCH_TERM}']",
+                    "path": [
+                        "arcgis-hub-gallery",
+                        "arcgis-hub-gallery-layout-list"
+                    ]
+                },
+                "more_results_button": {
+                    "query": "div.gallery-list-footer calcite-button",
+                    "path": [
+                        "arcgis-hub-gallery"
+                    ]
+                },
+                "results_count": {
+                    "query": "p.results-count",
+                    "path": [
+                        "arcgis-hub-gallery"
+                    ]
+                },
+                "card_url": {
+                    "query": "h3.title a",
+                    "path": [
+                        "arcgis-hub-card"
+                    ]
+                },
+                "details_page": {
+                    "info_button_xpath": "//button[contains(., 'About')]",
+                    "details_link_xpath": "//div[@class='side-panel-ref']//a[contains(., 'View Full Details')]",
+                    "api_button_selector": "arcgis-copyable-input, a[data-test='dataSource']",
+                    "api_input_selector": "arcgis-copyable-input",
+                    "api_input_label_text": "GeoJSON",
+                    "fallback_api_selector": "a[data-test='dataSource']"
+                }
+            }
+        }
+    ]
+}
