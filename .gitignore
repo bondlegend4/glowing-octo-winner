@@ -212,5 +212,3 @@ chromedriver-mac-arm64
 .DS_Store
 
 node_modules
-
-.github/workflows
