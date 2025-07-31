@@ -1,11 +1,12 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from '@jest/globals';
 import puppeteer from 'puppeteer';
 import {
+    processSourceDefinitions, // Import the new function
     findCardOnPage,
     loadAllResults,
     extractUrlFromCard,
     findAndScrapeUrl,
-    scrapeApiUrlFromDetailsPage // Import the new function
+    scrapeApiUrlFromDetailsPage
 } from '../src/agroforestry/scraping/gis_scraper.js';
 
 // A mock source configuration object to be used in tests
@@ -43,6 +44,40 @@ const mockSource = {
 
 
 jest.setTimeout(90000);
+
+// --- New Test Suite for JSON Processing ---
+describe('JSON Processing', () => {
+    it('should correctly combine a source definition with its datasets', () => {
+        const mockConfig = {
+            source_definitions: [{
+                name: "Test_Catalog",
+                origin_url: "http://test.com",
+                selectors: { "test_selector": "value" },
+                datasets: [
+                    { id: "d1", purpose: "p1", search_term: "s1" },
+                    { id: "d2", purpose: "p2", search_term: "s2" },
+                ]
+            }]
+        };
+
+        const processed = processSourceDefinitions(mockConfig);
+
+        // Check that the output is an array of the correct length
+        expect(Array.isArray(processed)).toBe(true);
+        expect(processed.length).toBe(2);
+
+        // Check that properties were merged correctly
+        expect(processed[0].name).toBe("Test_Catalog");
+        expect(processed[0].origin_url).toBe("http://test.com");
+        expect(processed[0].id).toBe("d1");
+        expect(processed[0].search_term).toBe("s1");
+        expect(processed[0].selectors).toEqual({ "test_selector": "value" });
+
+        expect(processed[1].id).toBe("d2");
+        expect(processed[1].search_term).toBe("s2");
+    });
+});
+
 
 describe('GIS Scraper Functions', () => {
     let browser;
@@ -153,11 +188,10 @@ describe('GIS Scraper Functions', () => {
     describe('findAndScrapeUrl (End-to-End)', () => {
         it('should complete both stages and return the final API URL for "Dams"', async () => {
             const testPage = await browser.newPage();
-            // Pass the complete mockSource object
-            const detailsUrl = await findAndScrapeUrl(testPage, { ...mockSource, origin_url: 'https://data.gis.ny.gov/search?q=Dams' });
+            const sourceConfig = { ...mockSource, origin_url: 'https://data.gis.ny.gov/search?q=Dams' };
+            
+            const detailsUrl = await findAndScrapeUrl(testPage, sourceConfig);
 
-            // The original test had an incorrect expectation for the URL. 
-            // The important part is that a URL is returned.
             expect(detailsUrl).toContain('https://data.gis.ny.gov/maps/');
             
             const apiUrl = await scrapeApiUrlFromDetailsPage(testPage, detailsUrl, mockSource);

@@ -1,4 +1,32 @@
 import puppeteer from 'puppeteer';
+import fs from 'fs/promises';
+
+/**
+ * Processes the raw configuration object into a flat list of source objects ready for scraping.
+ * This separates configuration logic from the scraping execution.
+ * @param {object} config - The parsed JSON configuration object from sources.json.
+ * @returns {Array<object>} A flat array of fully-formed source objects.
+ */
+export function processSourceDefinitions(config) {
+    const processedSources = [];
+    // Loop through each source DEFINITION (e.g., NYS Water Catalog)
+    for (const definition of config.source_definitions) {
+        // Loop through each DATASET in the definition
+        for (const dataset of definition.datasets) {
+            // Combine the base definition with the specific dataset info
+            const source = {
+                name: definition.name,
+                state: definition.state,
+                source_type: definition.source_type,
+                origin_url: definition.origin_url,
+                selectors: definition.selectors,
+                ...dataset // Overwrite with specific id, purpose, search_term
+            };
+            processedSources.push(source);
+        }
+    }
+    return processedSources;
+}
 
 /**
  * A reusable helper to query through nested shadow DOMs.
@@ -104,7 +132,7 @@ export async function extractUrlFromCard(cardHandle, source) {
 }
 
 /**
- * Scrapes the API URL from the dataset's details page using the robust new logic.
+ * Scrapes the API URL from the dataset's details page.
  * @param {import('puppeteer').Page} page
  * @param {string} detailsUrl
  * @param {object} source - The configuration object.
@@ -202,7 +230,7 @@ export async function findAndScrapeUrl(page, source) {
 }
 
 /**
- * Main execution block.
+ * Main execution block, now simplified by using processSourceDefinitions.
  */
 async function main() {
     let browser;
@@ -210,8 +238,12 @@ async function main() {
         const configData = await fs.readFile('sources.json', 'utf-8');
         const config = JSON.parse(configData);
         
-        for (const source of config.sources) {
-            console.log(`🚀 --- PROCESSING SOURCE: ${source.id} --- 🚀`);
+        // 1. Process the config into a simple list of sources
+        const sourcesToScrape = processSourceDefinitions(config);
+
+        // 2. Loop through the processed list
+        for (const source of sourcesToScrape) {
+            console.log(`\n🚀 --- Scraping Dataset: ${source.search_term} --- 🚀`);
             browser = await puppeteer.launch({ headless: "new" });
             const page = await browser.newPage();
             
@@ -234,7 +266,7 @@ async function main() {
             }
             
             await browser.close();
-            console.log(`\n--- FINISHED: ${source.id} ---\n`);
+            console.log(`\n--- FINISHED: ${source.search_term} ---\n`);
         }
 
     } catch (error) {
