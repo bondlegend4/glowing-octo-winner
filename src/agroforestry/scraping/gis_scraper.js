@@ -2,6 +2,39 @@ import puppeteer from 'puppeteer';
 import fs from 'fs/promises';
 
 /**
+ * Reads, updates, and writes the scraped URL back to the JSON configuration file.
+ * @param {string} filePath - The path to the sources.json file.
+ * @param {string} datasetId - The unique ID of the dataset to update.
+ * @param {string} apiUrl - The scraped API URL to save.
+ */
+export async function saveUrlToJson(filePath, datasetId, apiUrl) {
+    try {
+        const fileContent = await fs.readFile(filePath, 'utf-8');
+        const config = JSON.parse(fileContent);
+        let updated = false;
+
+        for (const definition of config.source_definitions) {
+            const dataset = definition.datasets.find(d => d.id === datasetId);
+            if (dataset) {
+                dataset.scraped_url = apiUrl;
+                dataset.imported = true; // Mark as successfully scraped
+                updated = true;
+                break;
+            }
+        }
+
+        if (updated) {
+            await fs.writeFile(filePath, JSON.stringify(config, null, 4));
+            console.log(`✅ Successfully updated ${datasetId} in ${filePath}`);
+        } else {
+            console.warn(`Could not find dataset with id "${datasetId}" to update.`);
+        }
+    } catch (error) {
+        console.error(`Error saving URL to JSON:`, error);
+    }
+}
+
+/**
  * Processes the raw configuration object into a flat list of source objects ready for scraping.
  * This separates configuration logic from the scraping execution.
  * @param {object} config - The parsed JSON configuration object from sources.json.
@@ -230,18 +263,17 @@ export async function findAndScrapeUrl(page, source) {
 }
 
 /**
- * Main execution block, now simplified by using processSourceDefinitions.
+ * Main execution block.
  */
 async function main() {
     let browser;
+    const jsonPath = 'sources.json';
     try {
-        const configData = await fs.readFile('sources.json', 'utf-8');
+        const configData = await fs.readFile(jsonPath, 'utf-8');
         const config = JSON.parse(configData);
         
-        // 1. Process the config into a simple list of sources
         const sourcesToScrape = processSourceDefinitions(config);
 
-        // 2. Loop through the processed list
         for (const source of sourcesToScrape) {
             console.log(`\n🚀 --- Scraping Dataset: ${source.search_term} --- 🚀`);
             browser = await puppeteer.launch({ headless: "new" });
@@ -256,6 +288,8 @@ async function main() {
                 if (apiUrl) {
                     console.log('\n--- SCRAPER COMPLETE ---');
                     console.log(`✅ STAGE 2 COMPLETE: Found API URL: ${apiUrl}`);
+                    // Save the successful result back to the JSON file
+                    await saveUrlToJson(jsonPath, source.id, apiUrl);
                 } else {
                     console.log('\n--- SCRAPER FAILED ---');
                     console.log('❌ Could not find the final API URL in Stage 2.');

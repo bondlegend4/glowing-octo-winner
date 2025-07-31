@@ -1,7 +1,10 @@
 import { jest, describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from '@jest/globals';
 import puppeteer from 'puppeteer';
+import fs from 'fs/promises'; // Import the file system module for testing
+
 import {
-    processSourceDefinitions, // Import the new function
+    saveUrlToJson, // Import the new function
+    processSourceDefinitions,
     findCardOnPage,
     loadAllResults,
     extractUrlFromCard,
@@ -45,7 +48,7 @@ const mockSource = {
 
 jest.setTimeout(90000);
 
-// --- New Test Suite for JSON Processing ---
+// --- Test Suite for JSON Processing ---
 describe('JSON Processing', () => {
     it('should correctly combine a source definition with its datasets', () => {
         const mockConfig = {
@@ -72,9 +75,46 @@ describe('JSON Processing', () => {
         expect(processed[0].id).toBe("d1");
         expect(processed[0].search_term).toBe("s1");
         expect(processed[0].selectors).toEqual({ "test_selector": "value" });
-
         expect(processed[1].id).toBe("d2");
-        expect(processed[1].search_term).toBe("s2");
+    });
+});
+
+// --- New Test Suite for File System Operations ---
+describe('File System Operations', () => {
+    const tempFilePath = './test_sources.json';
+    const mockConfig = {
+        source_definitions: [{
+            name: "Test_Catalog",
+            datasets: [
+                { id: "d1", search_term: "s1", imported: false },
+                { id: "d2", search_term: "s2", imported: false },
+            ]
+        }]
+    };
+
+    beforeEach(async () => {
+        // Create a temporary file before each test in this block
+        await fs.writeFile(tempFilePath, JSON.stringify(mockConfig, null, 4));
+    });
+
+    afterEach(async () => {
+        // Clean up the temporary file after each test
+        await fs.unlink(tempFilePath);
+    });
+
+    it('should update the correct dataset in the JSON file with the new URL', async () => {
+        const newUrl = "http://new-api.url/data.geojson";
+        const targetId = "d2";
+
+        await saveUrlToJson(tempFilePath, targetId, newUrl);
+
+        const updatedContent = await fs.readFile(tempFilePath, 'utf-8');
+        const updatedConfig = JSON.parse(updatedContent);
+
+        const updatedDataset = updatedConfig.source_definitions[0].datasets.find(d => d.id === targetId);
+        
+        expect(updatedDataset.scraped_url).toBe(newUrl);
+        expect(updatedDataset.imported).toBe(true);
     });
 });
 
@@ -95,7 +135,7 @@ describe('GIS Scraper Functions', () => {
     // Before each test, navigate to a fresh page and get the main catalog handle
     beforeEach(async () => {
         page = await browser.newPage();
-        // FIX: Add a retry loop to make navigation more resilient to network errors.
+        // Add a retry loop to make navigation more resilient to network errors.
         let success = false;
         for (let i = 0; i < 3; i++) { // Try up to 3 times
             try {
@@ -183,21 +223,67 @@ describe('GIS Scraper Functions', () => {
             expect(apiUrl).toContain('/FeatureServer');
         });
     });
+});
 
-    // --- End-to-End Integration Test ---
-    describe('findAndScrapeUrl (End-to-End)', () => {
-        it('should complete both stages and return the final API URL for "Dams"', async () => {
-            const testPage = await browser.newPage();
-            const sourceConfig = { ...mockSource, origin_url: 'https://data.gis.ny.gov/search?q=Dams' };
-            
-            const detailsUrl = await findAndScrapeUrl(testPage, sourceConfig);
+// --- THIS IS THE UPDATED TEST SUITE ---
+describe.only('Complete Scraper Integration', () => {
+    let browser;
+    const tempFilePath = './integration_test_sources.json';
+    const damsDataset = { id: "nys_dams", purpose: "infrastructure", search_term: "Dams", imported: false };
+    const mockConfig = {
+        source_definitions: [{
+            name: "NYS_GIS_Water_Catalog",
+            state: "NY",
+            origin_url: "https://data.gis.ny.gov/search?categories=%2Fcategories%2Fwater",
+            selectors: mockSource.selectors, // Use selectors from the mock
+            datasets: [damsDataset]
+        }]
+    };
+    
+    beforeAll(async () => {
+        browser = await puppeteer.launch({ headless: "new" });
+        // Create the temporary file for the integration test
+        await fs.writeFile(tempFilePath, JSON.stringify(mockConfig, null, 4));
+    });
 
-            expect(detailsUrl).toContain('https://data.gis.ny.gov/maps/');
-            
-            const apiUrl = await scrapeApiUrlFromDetailsPage(testPage, detailsUrl, mockSource);
-            expect(apiUrl).not.toBeNull();
-            expect(apiUrl).toContain('/FeatureServer');
-            await testPage.close();
-        });
+    afterAll(async () => {
+        await browser.close();
+        // Clean up the temporary file
+        await fs.unlink(tempFilePath);
+    });
+
+    it('should find, scrape, and save the URL for a dataset', async () => {
+        // --- 1. CONFIG PROCESSING ---
+        const configContent = await fs.readFile(tempFilePath, 'utf-8');
+        const config = JSON.parse(configContent);
+        const sources = processSourceDefinitions(config);
+        const sourceToScrape = sources[0];
+        
+        expect(sourceToScrape.id).toBe(damsDataset.id);
+
+        const testPage = await browser.newPage();
+
+        // --- 2. STAGE 1: Find Details URL ---
+        const detailsUrl = await findAndScrapeUrl(testPage, sourceToScrape);
+        expect(detailsUrl).toContain('https://data.gis.ny.gov/maps/');
+
+        // --- 3. STAGE 2: Scrape API URL ---
+        const apiUrl = await scrapeApiUrlFromDetailsPage(testPage, detailsUrl, sourceToScrape);
+        expect(apiUrl).not.toBeNull();
+        expect(apiUrl).toContain('/FeatureServer');
+        expect(apiUrl).toContain('geojson');
+
+        // --- 4. STAGE 3: Save Result to JSON ---
+        await saveUrlToJson(tempFilePath, sourceToScrape.id, apiUrl);
+
+        // --- 5. VERIFICATION ---
+        const updatedContent = await fs.readFile(tempFilePath, 'utf-8');
+        const updatedConfig = JSON.parse(updatedContent);
+        const updatedDataset = updatedConfig.source_definitions[0].datasets.find(d => d.id === sourceToScrape.id);
+
+        expect(updatedDataset.scraped_url).toBe(apiUrl);
+        expect(updatedDataset.imported).toBe(true);
+
+        await testPage.close();
     });
 });
