@@ -1,27 +1,47 @@
 import puppeteer from 'puppeteer';
 
 /**
- * Clicks the "More results" button until all pages are loaded.
- * @param {import('puppeteer').Page} page The Puppeteer page object.
- * @param {import('puppeteer').ElementHandle} catalogHandle Handle to the <arcgis-hub-catalog>.
+ * A reusable helper to query through nested shadow DOMs.
+ * @param {import('puppeteer').ElementHandle} parentHandle - The starting element.
+ * @param {string[]} path - An array of shadow host selectors.
+ * @param {string} finalSelector - The selector for the target element in the final shadow root.
+ * @returns {Promise<import('puppeteer').ElementHandle|null>}
  */
-export async function loadAllResults(page, catalogHandle) {
-    // FIX: Wait for the results count element to be ready to prevent timing errors.
+async function queryShadowDom(parentHandle, path, finalSelector) {
+    let currentHandle = parentHandle;
+    for (const selector of path) {
+        // Correctly pass `selector` as an argument `sel` into the browser context
+        const nextHandle = await currentHandle.evaluateHandle((el, sel) => el.shadowRoot?.querySelector(sel), selector);
+        if (!nextHandle.asElement()) return null;
+        currentHandle = nextHandle;
+    }
+    // Also apply the fix to the final query for consistency
+    const finalElementHandle = await currentHandle.evaluateHandle((el, sel) => el.shadowRoot?.querySelector(sel), finalSelector);
+    return finalElementHandle.asElement() ? finalElementHandle : null;
+}
+
+/**
+ * Clicks the "More results" button until all pages are loaded based on config.
+ * @param {import('puppeteer').Page} page
+ * @param {import('puppeteer').ElementHandle} catalogHandle
+ * @param {object} source - The configuration object for the data source.
+ */
+export async function loadAllResults(page, catalogHandle, source) {
+    const { selectors } = source;
+
     console.log('Waiting for results count to be visible...');
-    await page.waitForFunction(() => {
-        const catalog = document.querySelector('arcgis-hub-catalog');
-        const gallery = catalog?.shadowRoot?.querySelector('arcgis-hub-gallery');
-        const p = gallery?.shadowRoot?.querySelector('p.results-count');
-        // Ensure the text has loaded, e.g., "1 - 12 of 26 results"
-        return p && p.textContent.includes('of');
-    });
+    await page.waitForFunction((path, query) => {
+        let element = document.querySelector('arcgis-hub-catalog');
+        for (const p of path) {
+            element = element?.shadowRoot.querySelector(p);
+        }
+        const countEl = element?.shadowRoot.querySelector(query);
+        return countEl && countEl.textContent.includes('of');
+    }, {}, selectors.results_count.path, selectors.results_count.query);
     console.log('Results count is visible.');
 
-    const resultHandle = await catalogHandle.evaluateHandle(el =>
-        el.shadowRoot?.querySelector('arcgis-hub-gallery')?.shadowRoot?.querySelector('p.results-count')
-    );
-    // This should no longer fail, but we add a check for safety.
-    if (!resultHandle.asElement()) {
+    const resultHandle = await queryShadowDom(catalogHandle, selectors.results_count.path, selectors.results_count.query);
+    if (!resultHandle) {
         console.log('Could not read result count, cannot click "More results".');
         return;
     }
@@ -37,10 +57,8 @@ export async function loadAllResults(page, catalogHandle) {
     }
 
     for (let i = 0; i < clicksNeeded; i++) {
-        const moreButtonHandle = await catalogHandle.evaluateHandle(el =>
-            el.shadowRoot?.querySelector('arcgis-hub-gallery')?.shadowRoot?.querySelector('div.gallery-list-footer calcite-button')
-        );
-        if (moreButtonHandle.asElement()) {
+        const moreButtonHandle = await queryShadowDom(catalogHandle, selectors.more_results_button.path, selectors.more_results_button.query);
+        if (moreButtonHandle) {
             console.log(`Clicking 'More results'... (${i + 1}/${clicksNeeded})`);
             await moreButtonHandle.click();
             await new Promise(r => setTimeout(r, 2000));
@@ -52,146 +70,104 @@ export async function loadAllResults(page, catalogHandle) {
 }
 
 /**
- * Searches for a card with a specific data-test ID on the current page.
- * @param {import('puppeteer').ElementHandle} catalogHandle Handle to the <arcgis-hub-catalog>.
- * @param {string} cardTestId The value of the data-test attribute (e.g., "Dams").
+ * Finds a specific entity card on the page using selectors from the config.
+ * @param {import('puppeteer').ElementHandle} catalogHandle
+ * @param {object} source - The configuration object.
  * @returns {Promise<import('puppeteer').ElementHandle|null>}
  */
-export async function findCardOnPage(catalogHandle, cardTestId) {
-    console.log(`Searching for card with data-test="${cardTestId}"...`);
-    const cardHandle = await catalogHandle.evaluateHandle((el, id) => {
-        const gallery = el.shadowRoot?.querySelector('arcgis-hub-gallery');
-        const layoutList = gallery?.shadowRoot?.querySelector('arcgis-hub-gallery-layout-list');
-        return layoutList?.shadowRoot?.querySelector(`arcgis-hub-entity-card[data-test="${id}"]`);
-    }, cardTestId); // Pass cardTestId as an argument to evaluateHandle
+export async function findCardOnPage(catalogHandle, source) {
+    const { selectors, search_term } = source;
+    const finalQuery = selectors.gallery_card.query.replace('{SEARCH_TERM}', search_term);
+    console.log(`Searching for card with selector: "${finalQuery}"...`);
 
-    if (cardHandle.asElement()) {
-        console.log(`Found card: "${cardTestId}"`);
+    const cardHandle = await queryShadowDom(catalogHandle, selectors.gallery_card.path, finalQuery);
+
+    if (cardHandle) {
+        console.log(`Found card: "${search_term}"`);
         return cardHandle;
     }
-
-    console.log(`Card "${cardTestId}" not found on the current view.`);
+    console.log(`Card "${search_term}" not found on the current view.`);
     return null;
 }
 
 /**
- * Extracts the URL from a given entity card handle.
- * @param {import('puppeteer').ElementHandle} cardHandle Handle to the <arcgis-hub-entity-card>.
+ * Extracts the URL from a given card handle.
+ * @param {import('puppeteer').ElementHandle} cardHandle
+ * @param {object} source - The configuration object.
  * @returns {Promise<string|null>}
  */
-export async function extractUrlFromCard(cardHandle) {
-    // Traverse the two nested shadow roots to find the link.
-    const linkHandle = await cardHandle.evaluateHandle(el => {
-        const hubCard = el.shadowRoot?.querySelector('arcgis-hub-card');
-        // The link is inside the hubCard's shadow root.
-        return hubCard?.shadowRoot?.querySelector('h3.title a');
-    });
-
-    if (!linkHandle.asElement()) return null; // Return null if the link isn't found
-    return await linkHandle.evaluate(el => el.href);
+export async function extractUrlFromCard(cardHandle, source) {
+    const { card_url } = source.selectors;
+    const linkHandle = await queryShadowDom(cardHandle, card_url.path, card_url.query);
+    if (!linkHandle) return null;
+    return linkHandle.evaluate(el => el.href);
 }
 
-
 /**
- * Now handles multiple possible button/workflows to find the API link.
- * @param {import('puppeteer').Page} page The Puppeteer page object.
- * @param {string} detailsUrl The URL of the dataset's map/details page.
+ * Scrapes the API URL from the dataset's details page using the robust new logic.
+ * @param {import('puppeteer').Page} page
+ * @param {string} detailsUrl
+ * @param {object} source - The configuration object.
  * @returns {Promise<string|null>} The GeoJSON API or data source URL.
  */
-export async function scrapeApiUrlFromDetailsPage(page, detailsUrl) {
+export async function scrapeApiUrlFromDetailsPage(page, detailsUrl, source) {
     console.log(`\nNavigating to details page: ${detailsUrl}`);
     await page.goto(detailsUrl, { waitUntil: 'networkidle0', timeout: 60000 });
     console.log(`Landed on page: ${page.url()}`);
 
+    const { selectors } = source;
+    const pageSelectors = selectors.details_page;
+
     try {
+        // Handle the "/explore" page workflow first
         if (page.url().includes('/explore')) {
-            // 1. Find the button that opens the side panel (the "About" button).
-            const infoButtonXPath = "//button[contains(., 'About')]";
-            console.log('Looking for the info panel button...');
-            const infoPanelButton = await page.waitForSelector(`xpath/${infoButtonXPath}`);
-
-            // 2. Click it if it's not already active.
-            const buttonClassName = await infoPanelButton.evaluate(el => el.className);
-            if (!buttonClassName.includes('active')) {
-                console.log("Button is not active. Clicking to open side panel...");
-                await infoPanelButton.click();
-                console.log("Button clicked");
-            } else {
-                console.log("Side panel is already active.");
+            console.log('Detected /explore URL, initiating side panel workflow...');
+            const infoButton = await page.waitForSelector(`xpath/${pageSelectors.info_button_xpath}`);
+            if (!(await infoButton.evaluate(el => el.className.includes('active')))) {
+                await infoButton.click();
             }
-
-            // 3. Wait for the "View Full Details" link to appear inside the panel.
-            console.log("Waiting for 'View Full Details' link to appear...");
-            const detailsLinkXPath = "//div[@class='side-panel-ref']//a[contains(., 'View Full Details')]";
-            const fullDetailsLink = await page.waitForSelector(`xpath/${detailsLinkXPath}`);
-
-            // 4. Click the "View Full Details" link to trigger the dynamic content load.
-            console.log('Found "View Full Details" link, clicking...');
+            const fullDetailsLink = await page.waitForSelector(`xpath/${pageSelectors.details_link_xpath}`);
             await fullDetailsLink.evaluate(el => el.click());
         }
 
+        // Try the primary method: finding the API resources button and inputs
         try {
-            // 5. Wait for the API link content to appear on the new view.
-            const apiResourcesButton = await page.waitForSelector('button[data-test="apiResources"]', { timeout: 15000 });
-            console.log('Found "API Resource" link, clicking...');
-            /*Even though this is a button it is not actually ".click()" able. 
-            I think cause it's clicked by js.*/
+            const apiResourcesButton = await page.waitForSelector(pageSelectors.api_resources_button, { timeout: 15000 });
             await apiResourcesButton.evaluate(el => el.click());
-            console.log('Clicked "View API Resources" button.');
 
+            const containerHandle = await page.waitForSelector(`xpath/${pageSelectors.api_container_xpath}`);
+            const candidateInputs = await containerHandle.$$(pageSelectors.api_input_selector);
 
-            // 6. Find the specific container div that holds the API resources.
-            const containerXPath = "//div[contains(@class, 'content-action-card') and .//button[@data-test='apiResources']]";
-            const containerHandle = await page.waitForSelector(`xpath/${containerXPath}`);
-
-            // 4. Search for the input elements ONLY within that container.
-            console.log('Searching for all <arcgis-copyable-input> elements within the specific container...');
-            const candidateInputs = await containerHandle.$$('arcgis-copyable-input');
-            console.log(`Found ${candidateInputs.length} total <arcgis-copyable-input> elements to inspect.`);
-
-            // 5. Loop through the scoped candidates to find the GeoJSON link.
-            // --- DIAGNOSTIC LOGIC ---
-            // 1. Create an array to hold the data we find.
             const foundData = [];
-
-            // 2. Loop through every input and extract its internal label and value.
             for (const inputHandle of candidateInputs) {
-                const collectedData = await inputHandle.evaluate(el => {
-                    return {
-                        label: el.shadowRoot?.querySelector('label')?.textContent.trim() || 'LABEL NOT FOUND',
-                        value: el.value || 'VALUE NOT FOUND'
-                    };
-                });
+                const collectedData = await inputHandle.evaluate(el => ({
+                    label: el.shadowRoot?.querySelector('label')?.textContent.trim() || 'LABEL NOT FOUND',
+                    value: el.value || 'VALUE NOT FOUND'
+                }));
                 foundData.push(collectedData);
             }
 
-
-
-            // 4. Now, search through the data we collected for the target.
-            const geoJsonData = foundData.find(data => data.value.includes('geojson'));
+            const geoJsonData = foundData.find(data => data.value.includes(pageSelectors.api_input_value_match));
 
             if (geoJsonData) {
-                console.log('SUCCESS: Found GeoJSON data by searching the URL value.');
+                console.log(`SUCCESS: Found ${pageSelectors.api_input_value_match} data by searching the URL value.`);
                 return geoJsonData.value;
             } else {
-                // 3. Print a table of everything that was found.
                 console.log('\n--- DEBUG: Inspecting contents of all found inputs: ---');
                 console.table(foundData);
                 console.log('--- END OF DEBUG DATA ---\n');
             }
-
-        }
-        catch {
-            // --- Fallback Logic ---
-            console.warn('Could not find GeoJSON input by its label. Trying fallback...');
-            const dataSourceLink = await page.$('a[data-test="dataSource"]');
-            if (dataSourceLink) {
-                console.log('Found Data Source link via fallback.');
-                return dataSourceLink.evaluate(el => el.href);
-            }
+        } catch (e) {
+            console.warn('Primary method failed or timed out. Trying fallback...');
+            // This catch block intentionally allows the code to proceed to the fallback
         }
 
-
+        // Fallback Logic: if the primary method fails, look for a direct data source link
+        const dataSourceLink = await page.$(pageSelectors.fallback_api_selector);
+        if (dataSourceLink) {
+            console.log('SUCCESS: Found Data Source link via fallback.');
+            return dataSourceLink.evaluate(el => el.href);
+        }
 
     } catch (error) {
         console.error('A critical step failed while scraping the details page.', error);
@@ -203,79 +179,74 @@ export async function scrapeApiUrlFromDetailsPage(page, detailsUrl) {
 
 
 /**
- * Main orchestrator function to find and scrape a URL.
- * It first checks the current page, then loads all results and checks again.
+ * Main orchestrator that finds and scrapes a URL based on the source config.
  * @param {import('puppeteer').Page} page
- * @param {string} cardToFind The data-test ID of the card to find.
+ * @param {object} source - The configuration object.
+ * @returns {Promise<string|null>}
  */
-export async function findAndScrapeUrl(page, cardToFind) {
-    await page.goto('https://data.gis.ny.gov/search?categories=%2Fcategories%2Fwater', {
-        waitUntil: 'networkidle0'
-    });
-    const catalogHandle = await page.waitForSelector('arcgis-hub-catalog');
+export async function findAndScrapeUrl(page, source) {
+    await page.goto(source.origin_url, { waitUntil: 'networkidle0' });
+    const catalogHandle = await page.waitForSelector(source.selectors.catalog_container);
 
-    // 1. Try to find the card on the first page.
-    let cardHandle = await findCardOnPage(catalogHandle, cardToFind);
-
-    // 2. If not found, load all results and search again.
+    let cardHandle = await findCardOnPage(catalogHandle, source);
     if (!cardHandle) {
-        await loadAllResults(page, catalogHandle);
-        cardHandle = await findCardOnPage(catalogHandle, cardToFind);
+        await loadAllResults(page, catalogHandle, source);
+        cardHandle = await findCardOnPage(catalogHandle, source);
     }
 
-    // 3. If we have the card handle (either from step 1 or 2), extract the URL.
     if (cardHandle) {
-        return extractUrlFromCard(cardHandle);
+        return extractUrlFromCard(cardHandle, source);
     }
-
-    console.error(`Could not find the card "${cardToFind}" after all attempts.`);
+    console.error(`Could not find the card "${source.search_term}" after all attempts.`);
     return null;
 }
 
-
-// This allows the file to be run directly from the command line
+/**
+ * Main execution block.
+ */
 async function main() {
     let browser;
     try {
-        console.log('🚀 Launching scraper...');
-        browser = await puppeteer.launch({ headless: "new" });
-        const page = await browser.newPage();
+        const configData = await fs.readFile('sources.json', 'utf-8');
+        const config = JSON.parse(configData);
+        
+        for (const source of config.sources) {
+            console.log(`🚀 --- PROCESSING SOURCE: ${source.id} --- 🚀`);
+            browser = await puppeteer.launch({ headless: "new" });
+            const page = await browser.newPage();
+            
+            const detailsUrl = await findAndScrapeUrl(page, source);
 
-        // --- STAGE 1: Find the initial details page URL ---
-        const detailsUrl = await findAndScrapeUrl(page, 'Dams');
+            if (detailsUrl) {
+                console.log(`\n✅ STAGE 1 COMPLETE: Found details page URL: ${detailsUrl}`);
+                const apiUrl = await scrapeApiUrlFromDetailsPage(page, detailsUrl, source);
 
-        if (detailsUrl) {
-            console.log(`\n✅ STAGE 1 COMPLETE: Found details page URL: ${detailsUrl}`);
-
-            // --- STAGE 2: Navigate to the details page and find the API link ---
-            const apiUrl = await scrapeApiUrlFromDetailsPage(page, detailsUrl);
-
-            if (apiUrl) {
-                console.log('\n--- SCRAPER COMPLETE ---');
-                console.log(`✅ STAGE 2 COMPLETE: Found API URL: ${apiUrl}`);
-                console.log('------------------------\n');
+                if (apiUrl) {
+                    console.log('\n--- SCRAPER COMPLETE ---');
+                    console.log(`✅ STAGE 2 COMPLETE: Found API URL: ${apiUrl}`);
+                } else {
+                    console.log('\n--- SCRAPER FAILED ---');
+                    console.log('❌ Could not find the final API URL in Stage 2.');
+                }
             } else {
                 console.log('\n--- SCRAPER FAILED ---');
-                console.log('❌ Could not find the final API URL in Stage 2.');
-                console.log('----------------------\n');
+                console.log(`❌ Could not find the initial details URL for "${source.search_term}".`);
             }
-        } else {
-            console.log('\n--- SCRAPER FAILED ---');
-            console.log('❌ Could not find the initial details URL in Stage 1.');
-            console.log('----------------------\n');
+            
+            await browser.close();
+            console.log(`\n--- FINISHED: ${source.id} ---\n`);
         }
 
     } catch (error) {
-        console.error('An error occurred during scraping:', error);
+        console.error('A critical error occurred during the main process:', error);
     } finally {
-        if (browser) {
+        if (browser?.process() != null) {
             await browser.close();
         }
     }
 }
 
-
-// This condition checks if the script is being run directly
-if (process.argv[1] && process.argv[1].endsWith('gis_scraper.js')) {
+// Check if the script is being run directly to execute main()
+if (import.meta.url === `file://${process.argv[1]}`) {
     main();
 }

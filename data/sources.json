@@ -38,9 +38,10 @@
                 "details_page": {
                     "info_button_xpath": "//button[contains(., 'About')]",
                     "details_link_xpath": "//div[@class='side-panel-ref']//a[contains(., 'View Full Details')]",
-                    "api_button_selector": "arcgis-copyable-input, a[data-test='dataSource']",
+                    "api_resources_button": "button[data-test='apiResources']",
+                    "api_container_xpath": "//div[contains(@class, 'content-action-card') and .//button[@data-test='apiResources']]",
                     "api_input_selector": "arcgis-copyable-input",
-                    "api_input_label_text": "GeoJSON",
+                    "api_input_value_match": "geojson",
                     "fallback_api_selector": "a[data-test='dataSource']"
                 }
             }

@@ -6,7 +6,7 @@
     "type": "module",
     "scripts": {
         "start": "node src/agroforestry/scraping/gis_scraper.js",
-        "test": "jest"
+        "test": "NODE_OPTIONS=--experimental-vm-modules jest"
     },
     "author": "",
     "license": "ISC",
