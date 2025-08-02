@@ -11,6 +11,7 @@
     "author": "",
     "license": "ISC",
     "dependencies": {
+        "jsdom": "^26.1.0",
         "puppeteer": "^22.12.1"
     },
     "devDependencies": {

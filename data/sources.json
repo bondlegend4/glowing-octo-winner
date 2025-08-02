@@ -1,58 +1,134 @@
 {
+    "base_config": {
+        "base_search_url": "https://data.gis.ny.gov/search?categories=%2Fcategories%2F",
+        "state": "NY",
+        "source_type": "rest_api",
+        "selectors": {
+            "catalog_container": "arcgis-hub-catalog",
+            "gallery_card": {
+                "query": "arcgis-hub-entity-card[data-test='{SEARCH_TERM}']",
+                "path": [
+                    "arcgis-hub-gallery",
+                    "arcgis-hub-gallery-layout-list"
+                ]
+            },
+            "more_results_button": {
+                "query": "div.gallery-list-footer calcite-button",
+                "path": [
+                    "arcgis-hub-gallery"
+                ]
+            },
+            "results_count": {
+                "query": "p.results-count",
+                "path": [
+                    "arcgis-hub-gallery"
+                ]
+            },
+            "card_url": {
+                "query": "h3.title a",
+                "path": [
+                    "arcgis-hub-card"
+                ]
+            },
+            "details_page": {
+                "info_button_xpath": "//button[contains(., 'About')]",
+                "details_link_xpath": "//div[@class='side-panel-ref']//a[contains(., 'View Full Details')]",
+                "api_resources_button": "button[data-test='apiResources']",
+                "api_container_xpath": "//div[contains(@class, 'content-action-card') and .//button[@data-test='apiResources']]",
+                "api_input_selector": "arcgis-copyable-input",
+                "api_input_value_match": "geojson",
+                "fallback_api_selector": "a[data-test='dataSource']"
+            }
+        }
+    },
     "source_definitions": [
         {
             "name": "NYS_GIS_Water_Catalog",
-            "state": "NY",
-            "source_type": "rest_api",
-            "origin_url": "https://data.gis.ny.gov/search?categories=%2Fcategories%2Fwater",
-            "selectors": {
-                "catalog_container": "arcgis-hub-catalog",
-                "gallery_card": {
-                    "query": "arcgis-hub-entity-card[data-test='{SEARCH_TERM}']",
-                    "path": ["arcgis-hub-gallery", "arcgis-hub-gallery-layout-list"]
-                },
-                "more_results_button": {
-                    "query": "div.gallery-list-footer calcite-button",
-                    "path": ["arcgis-hub-gallery"]
-                },
-                "results_count": {
-                    "query": "p.results-count",
-                    "path": ["arcgis-hub-gallery"]
-                },
-                "card_url": {
-                    "query": "h3.title a",
-                    "path": ["arcgis-hub-card"]
-                },
-                "details_page": {
-                    "info_button_xpath": "//button[contains(., 'About')]",
-                    "details_link_xpath": "//div[@class='side-panel-ref']//a[contains(., 'View Full Details')]",
-                    "api_resources_button": "button[data-test='apiResources']",
-                    "api_container_xpath": "//div[contains(@class, 'content-action-card') and .//button[@data-test='apiResources']]",
-                    "api_input_selector": "arcgis-copyable-input",
-                    "api_input_value_match": "geojson",
-                    "fallback_api_selector": "a[data-test='dataSource']"
-                }
-            },
-            "datasets": [
+            "categories": [
                 {
-                    "id": "nys_dams",
-                    "purpose": "infrastructure",
-                    "search_term": "Dams"
+                    "category": "water",
+                    "datasets": [
+                        {
+                            "id": "nys_dams",
+                            "purpose": "infrastructure",
+                            "search_term": "Dams",
+                            "imported": true,
+                            "scraped_url": "https://services6.arcgis.com/DZHaqZm9cxOD4CWM/arcgis/rest/services/Dams/FeatureServer/29/query?outFields=*&where=1%3D1&f=geojson"
+                        },
+                        {
+                            "id": "nys_epf_waterbody",
+                            "purpose": "environmental",
+                            "search_term": "EPF Eligible Waterbody - Polyline",
+                            "imported": true,
+                            "scraped_url": "https://services2.arcgis.com/okXm0pb6aWH6XOGI/arcgis/rest/services/Eligible_polyline_July2021/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson"
+                        },
+                        {
+                            "id": "nys_unconsolidated_aquifers",
+                            "purpose": "geology",
+                            "search_term": "Unconsolidated Aquifers 250K _ Upstate NY",
+                            "imported": true,
+                            "scraped_url": "https://services6.arcgis.com/DZHaqZm9cxOD4CWM/arcgis/rest/services/Unconsolidated_Aquifers_250K___Upstate_NY/FeatureServer"
+                        },
+                        {
+                            "id": "nys_freshwater_wetlands",
+                            "purpose": "environmental",
+                            "search_term": "Informational Freshwater Wetland Mapping",
+                            "imported": true,
+                            "scraped_url": "https://services6.arcgis.com/DZHaqZm9cxOD4CWM/arcgis/rest/services/Informational_Freshwater_Wetland_Mapping/FeatureServer/2/query?outFields=*&where=1%3D1&f=geojson"
+                        }
+                    ]
                 },
                 {
-                    "id": "nys_epf_waterbody",
-                    "purpose": "environmental",
-                    "search_term": "EPF Eligible Waterbody - Polyline"
+                    "category": "parcels",
+                    "datasets": [
+                        {
+                            "id": "nys_tax_parcels_public",
+                            "purpose": "parcels",
+                            "search_term": "NYS Tax Parcels Public",
+                            "imported": true,
+                            "scraped_url": "https://services6.arcgis.com/EbVsqZ18sv1kVJ3k/arcgis/rest/services/NYS_Tax_Parcels_Public/FeatureServer"
+                        }
+                    ]
                 },
                 {
-                    "id": "nys_unconsolidated_aquifers",
-                    "purpose": "geology",
-                    "search_term": "Unconsolidated Aquifers 250K _ Upstate NY"
-                },
-                {
-                    "id": "nys_freshwater_wetlands",
-                    "purpose": "environmental",
-                    "search_term": "Informational Freshwater Wetland Mapping"
+                    "category": "boundaries",
+                    "datasets": [
+                        {
+                            "id": "nys_civil_boundaries",
+                            "purpose": "boundaries",
+                            "search_term": "NYS Civil Boundaries",
+                            "imported": true,
+                            "scraped_url": "https://services6.arcgis.com/EbVsqZ18sv1kVJ3k/arcgis/rest/services/NYS_Civil_Boundaries/FeatureServer"
+                        },
+                        {
+                            "id": "oswego_municipal_boundaries",
+                            "purpose": "boundaries",
+                            "search_term": "Oswego County Municipal Boundaries",
+                            "imported": true,
+                            "scraped_url": "https://services3.arcgis.com/0dC3T96jvK0z64NH/arcgis/rest/services/Municipal_Boundary/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson"
+                        },
+                        {
+                            "id": "oswego_local_zoning",
+                            "purpose": "boundaries",
+                            "search_term": "Oswego County Local Zoning",
+                            "imported": true,
+                            "scraped_url": "https://services3.arcgis.com/0dC3T96jvK0z64NH/arcgis/rest/services/Oswego_County_Local_Zoning/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson"
+                        },
+                        {
+                            "id": "oswego_ag_district",
+                            "purpose": "boundaries",
+                            "search_term": "Oswego County Agricultural District",
+                            "imported": true,
+                            "scraped_url": "https://services3.arcgis.com/0dC3T96jvK0z64NH/arcgis/rest/services/Oswego_County_Agricultural_District/FeatureServer"
+                        },
+                        {
+                            "id": "nys_ecological_regions",
+                            "purpose": "boundaries",
+                            "search_term": "Ecological Regions",
+                            "imported": true,
+                            "scraped_url": "https://services6.arcgis.com/DZHaqZm9cxOD4CWM/arcgis/rest/services/Ecological_Regions/FeatureServer/7/query?outFields=*&where=1%3D1&f=geojson"
+                        }
+                    ]
                 }
             ]
         }

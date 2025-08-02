@@ -14,13 +14,16 @@ export async function saveUrlToJson(filePath, datasetId, apiUrl) {
         let updated = false;
 
         for (const definition of config.source_definitions) {
-            const dataset = definition.datasets.find(d => d.id === datasetId);
-            if (dataset) {
-                dataset.scraped_url = apiUrl;
-                dataset.imported = true; // Mark as successfully scraped
-                updated = true;
-                break;
+            for (const category of definition.categories) {
+                const dataset = category.datasets.find(d => d.id === datasetId);
+                if (dataset) {
+                    dataset.scraped_url = apiUrl;
+                    dataset.imported = true;
+                    updated = true;
+                    break; // Exit the inner loop once found and updated
+                }
             }
+            if (updated) break; // Exit the outer loop
         }
 
         if (updated) {
@@ -34,6 +37,7 @@ export async function saveUrlToJson(filePath, datasetId, apiUrl) {
     }
 }
 
+
 /**
  * Processes the raw configuration object into a flat list of source objects ready for scraping.
  * This separates configuration logic from the scraping execution.
@@ -42,20 +46,20 @@ export async function saveUrlToJson(filePath, datasetId, apiUrl) {
  */
 export function processSourceDefinitions(config) {
     const processedSources = [];
-    // Loop through each source DEFINITION (e.g., NYS Water Catalog)
+    const baseConfig = config.base_config || {};
+
     for (const definition of config.source_definitions) {
-        // Loop through each DATASET in the definition
-        for (const dataset of definition.datasets) {
-            // Combine the base definition with the specific dataset info
-            const source = {
-                name: definition.name,
-                state: definition.state,
-                source_type: definition.source_type,
-                origin_url: definition.origin_url,
-                selectors: definition.selectors,
-                ...dataset // Overwrite with specific id, purpose, search_term
-            };
-            processedSources.push(source);
+        for (const category of definition.categories) {
+            const origin_url = `${baseConfig.base_search_url}${category.category}`;
+            for (const dataset of category.datasets) {
+                processedSources.push({
+                    ...baseConfig,
+                    name: definition.name,
+                    category: category.category,
+                    ...dataset,
+                    origin_url
+                });
+            }
         }
     }
     return processedSources;
@@ -265,9 +269,14 @@ export async function findAndScrapeUrl(page, source) {
 /**
  * Main execution block.
  */
+/* All helper functions (saveUrlToJson, queryShadowDom, etc.) remain the same */
+
+/**
+ * Main execution block updated to programmatically build the origin URL.
+ */
 async function main() {
     let browser;
-    const jsonPath = 'sources.json';
+    const jsonPath = './data/sources.json';
     try {
         const configData = await fs.readFile(jsonPath, 'utf-8');
         const config = JSON.parse(configData);
@@ -275,6 +284,11 @@ async function main() {
         const sourcesToScrape = processSourceDefinitions(config);
 
         for (const source of sourcesToScrape) {
+            if (source.imported) {
+                console.log(`Skipping already imported dataset: "${source.search_term}"`);
+                continue;
+            }
+
             console.log(`\n🚀 --- Scraping Dataset: ${source.search_term} --- 🚀`);
             browser = await puppeteer.launch({ headless: "new" });
             const page = await browser.newPage();
@@ -286,17 +300,14 @@ async function main() {
                 const apiUrl = await scrapeApiUrlFromDetailsPage(page, detailsUrl, source);
 
                 if (apiUrl) {
-                    console.log('\n--- SCRAPER COMPLETE ---');
                     console.log(`✅ STAGE 2 COMPLETE: Found API URL: ${apiUrl}`);
                     // Save the successful result back to the JSON file
                     await saveUrlToJson(jsonPath, source.id, apiUrl);
                 } else {
-                    console.log('\n--- SCRAPER FAILED ---');
-                    console.log('❌ Could not find the final API URL in Stage 2.');
+                    console.log(`❌ FAILED STAGE 2 for "${source.search_term}".`);
                 }
             } else {
-                console.log('\n--- SCRAPER FAILED ---');
-                console.log(`❌ Could not find the initial details URL for "${source.search_term}".`);
+                console.log(`❌ FAILED STAGE 1 for "${source.search_term}".`);
             }
             
             await browser.close();
@@ -311,6 +322,8 @@ async function main() {
         }
     }
 }
+
+/* Other helper functions and the final if block remain the same */
 
 // Check if the script is being run directly to execute main()
 if (import.meta.url === `file://${process.argv[1]}`) {
