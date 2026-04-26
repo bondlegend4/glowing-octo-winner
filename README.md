@@ -3,6 +3,18 @@ An automated system to plan an agroforestry system.
 
 # NYS GIS Data Scraper
 
+# Start up
+[python virtual enviroments](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/#create-and-use-virtual-environments)
+```
+pip install -r requirements.txt
+```
+
+# Run project
+
+```python
+python -m src.services.local_data_importer
+```
+
 This project is a Node.js web scraper designed to extract API links for datasets from the New York State GIS data portal. It uses **Puppeteer** for browser automation and **Jest** for testing.
 
 The scraper is engineered to handle a modern, dynamic web application with complex features like infinite scrolling, nested shadow DOMs, and content that loads asynchronously.

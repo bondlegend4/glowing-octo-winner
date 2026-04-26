@@ -212,3 +212,6 @@ chromedriver-mac-arm64
 .DS_Store
 
 node_modules
+
+id*
+nextcloud
