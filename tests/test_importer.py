@@ -8,7 +8,8 @@ from src.agroforestry.data.importer import (
     get_db_engine,
     load_source_manifest,
     load_gdf_to_postgis,
-    import_from_geojson_api
+    import_from_geojson_api,
+    get_safe_table_name
 )
 
 class TestImporterIntegration(unittest.TestCase):
@@ -76,6 +77,62 @@ class TestImporterIntegration(unittest.TestCase):
         # Verify the logic of the downloader itself
         gdf = import_from_geojson_api("http://mock-api.com", "test_table")
         self.assertIsNotNone(gdf)
+    
+    @patch('requests.get')
+    def test_layer_discovery(self, mock_get):
+        """Verify the logic that expands a FeatureServer into multiple tables."""
+        from src.agroforestry.data.importer import get_layers_from_service
+        
+        # Mocking a standard ArcGIS /layers response
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {
+            "layers": [
+                {"id": 1, "name": "Confined Aquifers"},
+                {"id": 2, "name": "Unconfined Aquifers"}
+            ]
+        }
+        
+        layers = get_layers_from_service("https://fake-gis.ny.gov/FeatureServer")
+        self.assertEqual(len(layers), 2)
+        self.assertEqual(layers[0]['name'], "Confined Aquifers")
+
+    def test_manifest_url_validity(self):
+        """Ensure no malformed URLs exist in the source manifest."""
+        path = os.path.join('data', 'sources.json')
+        manifest = load_source_manifest(path)
+        for definition in manifest['source_definitions']:
+            for cat in definition['categories']:
+                for ds in cat['datasets']:
+                    url = ds.get('scraped_url', '')
+                    if url:
+                        self.assertTrue(url.startswith('http'))
+
+
+class TestImporterResilience(unittest.TestCase):
+
+    def test_load_manifest_success(self):
+        """Ensure the manifest loads correctly from the data directory."""
+        path = os.path.join('data', 'sources.json')
+        manifest = load_source_manifest(path)
+        self.assertIn('source_definitions', manifest)
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_get_db_engine_missing_env(self):
+        """Test that the importer fails gracefully if credentials are missing."""
+        with self.assertRaises(KeyError):
+            get_db_engine()
+
+    def test_naming_safety_logic(self):
+        """Verify that table names are truncated to 63 chars to avoid Postgres errors."""
+        long_id = "nys_unconsolidated_aquifers"
+        long_layer = "confined_unconsolidated_aquifers_upper_hudson_valley_250k"
+        
+        safe_name = get_safe_table_name(long_id, long_layer)
+        
+        self.assertLessEqual(len(safe_name), 63)
+        self.assertTrue(safe_name.startswith("nys_unconsolidated"))
+        # Ensure it's lowercase and uses underscores
+        self.assertEqual(safe_name, safe_name.lower().replace('-', '_'))
 
 if __name__ == '__main__':
     unittest.main()
