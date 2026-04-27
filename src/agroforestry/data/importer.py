@@ -14,16 +14,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("AgroImporter")
 
-def load_source_manifest(path):
-    """Satisfies test requirements and modularizes manifest loading."""
-    try:
-        with open(path, 'r') as f:
-            return json.load(f)
-    except Exception as e:
-        logger.error(f"Could not load manifest: {e}")
-        raise
-
-
 def get_db_engine():
     try:
         db_user = os.environ['DB_USER']
@@ -36,6 +26,25 @@ def get_db_engine():
     except KeyError as e:
         logger.error(f"Environment variable not set: {e}")
         raise
+
+def load_source_manifest(path):
+    """Satisfies test requirements and modularizes manifest loading."""
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Could not load manifest at {path}: {e}")
+        raise
+
+def get_safe_table_name(base_id, layer_name):
+    """Generates a PostgreSQL-safe table name (max 63 chars)."""
+    clean_base = base_id.lower().replace('-', '_')
+    clean_layer = layer_name.lower().replace(' ', '_').replace('-', '_')
+    full_name = f"{clean_base}_{clean_layer}"
+    if len(full_name) <= 63:
+        return full_name
+    suffix_hash = hashlib.md5(clean_layer.encode()).hexdigest()[:6]
+    return f"{full_name[:56]}_{suffix_hash}"
 
 def get_layers_from_service(base_url):
     """
@@ -51,25 +60,6 @@ def get_layers_from_service(base_url):
     except Exception as e:
         logger.error(f"Could not discover layers for {base_url}: {e}")
     return []
-
-def get_safe_table_name(base_id, layer_name):
-    """
-    Generates a PostgreSQL-safe table name (max 63 chars).
-    """
-    # Clean the names
-    clean_base = base_id.lower().replace('-', '_')
-    clean_layer = layer_name.lower().replace(' ', '_').replace('-', '_')
-    
-    full_name = f"{clean_base}_{clean_layer}"
-    
-    if len(full_name) <= 63:
-        return full_name
-    
-    # If too long, truncate the middle and add a short hash to ensure uniqueness
-    suffix_hash = hashlib.md5(clean_layer.encode()).hexdigest()[:6]
-    max_prefix_len = 63 - 1 - len(suffix_hash) # 56 chars
-    
-    return f"{full_name[:max_prefix_len]}_{suffix_hash}"
 
 def prepare_layer_url(base_url, layer_id):
     """
@@ -122,11 +112,12 @@ def load_gdf_to_postgis(gdf, table_name, engine):
         logger.error(f"DATABASE WRITE ERROR for {table_name}: {e}")
         raise
 
-def main():
+def main(manifest_path=None):
     load_dotenv()
-    manifest_path = os.path.join('data', 'sources.json')
+    if manifest_path is None:
+        manifest_path = os.path.join('data', 'sources.json')
+    
     manifest = load_source_manifest(manifest_path)
-
     engine = get_db_engine()
     
     for definition in manifest.get('source_definitions', []):
