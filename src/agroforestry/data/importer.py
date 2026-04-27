@@ -1,10 +1,11 @@
 import os
 import json
 import logging
+import hashlib
 import requests
 import geopandas as gpd
-from sqlalchemy import create_engine, inspect
 from dotenv import load_dotenv
+from sqlalchemy import create_engine, inspect
 
 # Enhanced logging configuration to include the function name
 logging.basicConfig(
@@ -50,6 +51,25 @@ def get_layers_from_service(base_url):
     except Exception as e:
         logger.error(f"Could not discover layers for {base_url}: {e}")
     return []
+
+def get_safe_table_name(base_id, layer_name):
+    """
+    Generates a PostgreSQL-safe table name (max 63 chars).
+    """
+    # Clean the names
+    clean_base = base_id.lower().replace('-', '_')
+    clean_layer = layer_name.lower().replace(' ', '_').replace('-', '_')
+    
+    full_name = f"{clean_base}_{clean_layer}"
+    
+    if len(full_name) <= 63:
+        return full_name
+    
+    # If too long, truncate the middle and add a short hash to ensure uniqueness
+    suffix_hash = hashlib.md5(clean_layer.encode()).hexdigest()[:6]
+    max_prefix_len = 63 - 1 - len(suffix_hash) # 56 chars
+    
+    return f"{full_name[:max_prefix_len]}_{suffix_hash}"
 
 def prepare_layer_url(base_url, layer_id):
     """
@@ -120,12 +140,16 @@ def main():
                     layers = get_layers_from_service(base_url)
                     for layer in layers:
                         layer_id = layer['id']
-                        layer_name = layer['name'].lower().replace(' ', '_').replace('-', '_')
-                        table_name = f"{dataset['id']}_{layer_name}"
+                        layer_name = layer['name']
+                        
+                        # Use the helper to generate a safe name
+                        table_name = get_safe_table_name(dataset['id'], layer_name)
                         
                         url = prepare_layer_url(base_url, layer_id)
                         gdf = import_from_geojson_api(url, table_name)
-                        load_gdf_to_postgis(gdf, table_name, engine)
+                        
+                        if gdf is not None:
+                            load_gdf_to_postgis(gdf, table_name, engine)
                 else:
                     # Specific Mode: Import the single provided URL
                     table_name = dataset['id'].lower().replace('-', '_')
