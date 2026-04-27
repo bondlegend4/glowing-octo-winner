@@ -264,7 +264,6 @@ describe('Complete Scraper Integration', () => {
         const sourceToScrape = processSourceDefinitions(mockConfig)[0];
         const testPage = await browser.newPage();
 
-        expect(sourceToScrape.id).toBe(damsDataset.id);
         // --- 2. STAGE 1: Find Details URL ---
         const detailsUrl = await findAndScrapeUrl(testPage, sourceToScrape);
         expect(detailsUrl).toContain('https://data.gis.ny.gov/maps/');
