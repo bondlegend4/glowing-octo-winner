@@ -4,6 +4,7 @@ import logging
 import requests
 import geopandas as gpd
 from sqlalchemy import create_engine
+from dotenv import load_dotenv  # Added for .env support
 
 # 1. Configure Logging
 logging.basicConfig(
@@ -12,14 +13,14 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-# 2. Database Connection Function (CORRECTED)
+# 2. Database Connection Function
 def get_db_engine():
     """
     Creates and returns a SQLAlchemy engine using database credentials
-    from environment variables. Raises an error if variables are not set.
+    from environment variables.
     """
     try:
-        # Using os.environ[...] will raise a KeyError if the variable is not found
+        # load_dotenv() is called in main() to populate these
         db_user = os.environ['DB_USER']
         db_pass = os.environ['DB_PASS']
         db_host = os.environ['DB_HOST']
@@ -31,7 +32,7 @@ def get_db_engine():
         logging.info("Successfully created database engine.")
         return engine
     except KeyError as e:
-        logging.error(f"FATAL: Environment variable not set: {e}. Please configure your database credentials.")
+        logging.error(f"FATAL: Environment variable not set: {e}. Please check your .env file.")
         raise
     except Exception as e:
         logging.error(f"Failed to create database engine: {e}")
@@ -40,7 +41,7 @@ def get_db_engine():
 # 3. Manifest Loading Function
 def load_source_manifest(filepath):
     """
-    Loads and parses the source manifest JSON file with the new structure.
+    Loads and parses the source manifest JSON file.
     """
     logging.info(f"Loading source manifest from: {filepath}")
     try:
@@ -49,81 +50,68 @@ def load_source_manifest(filepath):
         
         sources_to_import = []
         for definition in manifest.get('source_definitions', []):
-            for category in definition.get('categories', []):
-                for dataset in category.get('datasets', []):
-                    if dataset.get('imported') and 'scraped_url' in dataset:
-                        if 'f=geojson' in dataset['scraped_url']:
-                            source_obj = {
-                                'name': dataset.get('id', 'unknown'),
-                                'url': dataset['scraped_url'],
-                                'target_table': dataset.get('id', 'unknown').lower().replace('-', '_')
-                            }
-                            sources_to_import.append(source_obj)
-                        else:
-                            logging.warning(f"Skipping non-GeoJSON source: {dataset.get('id')}")
+            # Handle both nested 'categories' and direct 'datasets' structures
+            dataset_list = []
+            if 'categories' in definition:
+                for category in definition.get('categories', []):
+                    dataset_list.extend(category.get('datasets', []))
+            else:
+                dataset_list = definition.get('datasets', [])
 
-        logging.info(f"Successfully loaded and parsed {len(sources_to_import)} GeoJSON data sources from manifest.")
+            for dataset in dataset_list:
+                if dataset.get('imported') and 'scraped_url' in dataset:
+                    # We only want GeoJSON for this phase
+                    if 'f=geojson' in dataset['scraped_url'].lower() or 'geojson' in dataset['scraped_url'].lower():
+                        source_obj = {
+                            'name': dataset.get('id', 'unknown'),
+                            'url': dataset['scraped_url'],
+                            'target_table': dataset.get('id', 'unknown').lower().replace('-', '_')
+                        }
+                        sources_to_import.append(source_obj)
+        
+        logging.info(f"Successfully parsed {len(sources_to_import)} data sources.")
         return sources_to_import
     except FileNotFoundError:
         logging.error(f"Manifest file not found at: {filepath}")
         return []
-    except json.JSONDecodeError:
-        logging.error(f"Malformed JSON in manifest file: {filepath}")
-        return []
     except Exception as e:
-        logging.error(f"An unexpected error occurred while loading the manifest: {e}")
+        logging.error(f"An unexpected error occurred loading manifest: {e}")
         return []
 
 # 4. GeoJSON API Handler
 def import_from_geojson_api(url, target_table):
-    """
-    Fetches data from a GeoJSON API and returns it as a GeoDataFrame.
-    """
     logging.info(f"Fetching GeoJSON from: {url}")
     try:
         response = requests.get(url, timeout=60)
         response.raise_for_status()
-        
         gdf = gpd.read_file(response.text)
-        logging.info(f"Successfully downloaded and parsed data for '{target_table}'.")
         return gdf
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Failed to download data from {url}: {e}")
-        return None
     except Exception as e:
-        logging.error(f"Failed to parse GeoJSON for '{target_table}': {e}")
+        logging.error(f"Failed to download/parse data for '{target_table}': {e}")
         return None
 
 # 5. Database Loading Function
 def load_gdf_to_postgis(gdf, table_name, engine):
-    """
-    Loads a GeoDataFrame into a PostGIS database.
-    """
-    if gdf.empty:
-        logging.warning(f"GeoDataFrame for '{table_name}' is empty. Skipping database load.")
+    if gdf is None or gdf.empty:
         return
-
     try:
         logging.info(f"Writing {len(gdf)} records to table '{table_name}'...")
+        # Standardize to WGS84 for web mapping
         gdf_proj = gdf.to_crs(epsg=4326)
-        gdf_proj.to_postgis(
-            name=table_name,
-            con=engine,
-            if_exists='replace',
-            index=True
-        )
+        gdf_proj.to_postgis(name=table_name, con=engine, if_exists='replace', index=True)
         logging.info(f"Successfully wrote data to '{table_name}'.")
     except Exception as e:
-        logging.error(f"Failed to write to database for table '{table_name}': {e}")
+        logging.error(f"Failed to write to database for '{table_name}': {e}")
 
 # 6. Main Execution Workflow
 def main():
-    """
-    Main function to orchestrate the ETL pipeline.
-    """
     logging.info("Starting importer service workflow...")
     
-    manifest_path = 'sources.json'
+    # Load .env file from the project root
+    load_dotenv()
+    
+    # Use a relative path that works from the project root
+    manifest_path = 'sources.json' 
     sources = load_source_manifest(manifest_path)
     
     if not sources:
@@ -133,21 +121,12 @@ def main():
     try:
         db_engine = get_db_engine()
     except Exception:
-        logging.error("Could not connect to the database. Aborting.")
         return
         
     for source in sources:
-        logging.info(f"--- Processing source: {source['name']} ---")
-        try:
-            gdf = import_from_geojson_api(source['url'], source['target_table'])
-            
-            if gdf is not None:
-                load_gdf_to_postgis(gdf, source['target_table'], db_engine)
-            else:
-                logging.warning(f"Skipping database load for '{source['name']}' due to download/parse failure.")
-
-        except Exception as e:
-            logging.error(f"An unexpected error occurred while processing '{source['name']}'. Error: {e}")
+        logging.info(f"--- Processing: {source['name']} ---")
+        gdf = import_from_geojson_api(source['url'], source['target_table'])
+        load_gdf_to_postgis(gdf, source['target_table'], db_engine)
 
     logging.info("Importer service workflow finished.")
 
