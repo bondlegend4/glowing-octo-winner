@@ -49,7 +49,7 @@ const mockBaseConfig = {
 jest.setTimeout(90000);
 
 // --- Test Suite for Configuration Processing ---
-describe.only('processSourceDefinitions', () => {
+describe('processSourceDefinitions', () => {
     it('should correctly merge base config and definitions into a flat list', () => {
         // Updated mockConfig to match the new structure
         const mockConfig = {
@@ -80,7 +80,7 @@ describe.only('processSourceDefinitions', () => {
 
 
 // --- Test Suite for File System Operations ---
-describe.only('saveUrlToJson', () => {
+describe('saveUrlToJson', () => {
     const tempFilePath = './test_sources.json';
     // Updated mockConfig to match the new structure
     const mockConfig = {
