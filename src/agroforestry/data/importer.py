@@ -107,11 +107,13 @@ def load_gdf_to_postgis(gdf, table_name, engine):
 def main():
     logging.info("Starting importer service workflow...")
     
-    # Load .env file from the project root
+    # Load .env file from the current directory (project root)
     load_dotenv()
     
-    # Use a relative path that works from the project root
-    manifest_path = 'sources.json' 
+    # Updated path to reflect your actual directory structure
+    # This looks for sources.json inside the 'data' folder from where you run the script
+    manifest_path = os.path.join('data', 'sources.json') 
+    
     sources = load_source_manifest(manifest_path)
     
     if not sources:
@@ -121,12 +123,17 @@ def main():
     try:
         db_engine = get_db_engine()
     except Exception:
+        # get_db_engine already logs the fatal error
         return
         
     for source in sources:
         logging.info(f"--- Processing: {source['name']} ---")
         gdf = import_from_geojson_api(source['url'], source['target_table'])
-        load_gdf_to_postgis(gdf, source['target_table'], db_engine)
+        
+        if gdf is not None:
+            load_gdf_to_postgis(gdf, source['target_table'], db_engine)
+        else:
+            logging.warning(f"Skipping database load for '{source['name']}' due to download failure.")
 
     logging.info("Importer service workflow finished.")
 
