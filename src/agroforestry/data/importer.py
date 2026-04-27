@@ -13,6 +13,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger("AgroImporter")
 
+def load_source_manifest(path):
+    """Satisfies test requirements and modularizes manifest loading."""
+    try:
+        with open(path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Could not load manifest: {e}")
+        raise
+
+
 def get_db_engine():
     try:
         db_user = os.environ['DB_USER']
@@ -95,9 +105,7 @@ def load_gdf_to_postgis(gdf, table_name, engine):
 def main():
     load_dotenv()
     manifest_path = os.path.join('data', 'sources.json')
-    
-    with open(manifest_path, 'r') as f:
-        manifest = json.load(f)
+    manifest = load_source_manifest(manifest_path)
 
     engine = get_db_engine()
     
