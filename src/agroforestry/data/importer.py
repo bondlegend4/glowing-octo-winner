@@ -93,15 +93,16 @@ def import_from_geojson_api(url, target_table):
 # 5. Database Loading Function
 def load_gdf_to_postgis(gdf, table_name, engine):
     if gdf is None or gdf.empty:
+        logging.warning(f"No data to write for {table_name}")
         return
     try:
         logging.info(f"Writing {len(gdf)} records to table '{table_name}'...")
-        # Standardize to WGS84 for web mapping
         gdf_proj = gdf.to_crs(epsg=4326)
         gdf_proj.to_postgis(name=table_name, con=engine, if_exists='replace', index=True)
         logging.info(f"Successfully wrote data to '{table_name}'.")
     except Exception as e:
         logging.error(f"Failed to write to database for '{table_name}': {e}")
+        raise  # <--- CRITICAL: Re-raise the exception for the test suite to catch
 
 # 6. Main Execution Workflow
 def main():
