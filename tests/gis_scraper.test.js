@@ -68,7 +68,7 @@ describe('processSourceDefinitions', () => {
         };
 
         const processed = processSourceDefinitions(mockConfig);
-        
+
         expect(processed).toHaveLength(2);
         expect(processed[0].id).toBe("d1");
         expect(processed[0].state).toBe("NY");
@@ -123,7 +123,8 @@ describe('Individual Scraper Functions', () => {
                     datasets: [{ id: "nys_dams_test", search_term: "Dams", imported: false }]
                 }
             ]
-        }]    })[0];
+        }]
+    })[0];
 
     beforeAll(async () => {
         browser = await puppeteer.launch({ headless: "new" });
@@ -239,11 +240,11 @@ describe('Complete Scraper Integration', () => {
             name: "NYS_GIS_Water_Catalog",
             category: "water", // Use category instead of origin_url
             categories: [ // It should be a "categories" array
-            {
-                category: "water",
-                datasets: [{ id: "nys_dams_test", search_term: "Dams", imported: false }]
-            }
-        ]
+                {
+                    category: "water",
+                    datasets: [{ id: "nys_dams_test", search_term: "Dams", imported: false }]
+                }
+            ]
         }]
     };
 
@@ -280,7 +281,11 @@ describe('Complete Scraper Integration', () => {
         // --- 5. VERIFICATION ---
         const updatedContent = await fs.readFile(tempFilePath, 'utf-8');
         const updatedConfig = JSON.parse(updatedContent);
-        const updatedDataset = updatedConfig.source_definitions[0].datasets.find(d => d.id === sourceToScrape.id);
+
+        // Access via the categories array to find the updated dataset
+        const updatedDataset = updatedConfig.source_definitions[0].categories[0].datasets.find(
+            d => d.id === sourceToScrape.id
+        );
 
         expect(updatedDataset.scraped_url).toBe(apiUrl);
         expect(updatedDataset.imported).toBe(true);
