@@ -26,17 +26,30 @@ def get_db_engine():
         logger.error(f"Environment variable not set: {e}")
         raise
 
-def prepare_arcgis_url(url):
-    url = url.strip()
-    if "FeatureServer" in url and "query" not in url:
-        if url.endswith("FeatureServer") or url.endswith("FeatureServer/"):
-            url = f"{url.rstrip('/')}/0/query?where=1%3D1&outFields=*&f=geojson"
-        else:
-            url = f"{url.rstrip('/')}/query?where=1%3D1&outFields=*&f=geojson"
-    return url
+def get_layers_from_service(base_url):
+    """
+    Queries the ArcGIS service metadata to find all available layers.
+    """
+    root_url = base_url.split('/query')[0].rstrip('/')
+    metadata_url = f"{root_url}/layers?f=json"
+    try:
+        response = requests.get(metadata_url, timeout=30)
+        if response.status_code == 200:
+            data = response.json()
+            return data.get('layers', [])
+    except Exception as e:
+        logger.error(f"Could not discover layers for {base_url}: {e}")
+    return []
+
+def prepare_layer_url(base_url, layer_id):
+    """
+    Constructs a valid GeoJSON query URL for a specific layer ID.
+    """
+    root_url = base_url.split('/FeatureServer')[0]
+    return f"{root_url}/FeatureServer/{layer_id}/query?where=1%3D1&outFields=*&f=geojson"
 
 def import_from_geojson_api(url, target_table):
-    logger.info(f"Initiating fetch for '{target_table}'...")
+    logger.info(f"Initiating fetch for '{target_table}' from {url}...")
     logger.debug(f"Target URL: {url}")
     try:
         headers = {'User-Agent': 'Mozilla/5.0 AgroforestryBot/1.0'}
@@ -83,12 +96,8 @@ def main():
     load_dotenv()
     manifest_path = os.path.join('data', 'sources.json')
     
-    try:
-        with open(manifest_path, 'r') as f:
-            manifest = json.load(f)
-    except Exception as e:
-        logger.error(f"Could not load manifest: {e}")
-        return
+    with open(manifest_path, 'r') as f:
+        manifest = json.load(f)
 
     engine = get_db_engine()
     
@@ -97,11 +106,23 @@ def main():
             for dataset in category.get('datasets', []):
                 if not dataset.get('imported'): continue
                 
-                table_name = dataset['id'].lower().replace('-', '_')
-                url = prepare_arcgis_url(dataset.get('scraped_url', ''))
-                
-                gdf = import_from_geojson_api(url, table_name)
-                load_gdf_to_postgis(gdf, table_name, engine)
+                base_url = dataset.get('scraped_url', '')
+                if "FeatureServer" in base_url and "/query" not in base_url:
+                    # Discovery Mode: Fetch all layers in the service
+                    layers = get_layers_from_service(base_url)
+                    for layer in layers:
+                        layer_id = layer['id']
+                        layer_name = layer['name'].lower().replace(' ', '_').replace('-', '_')
+                        table_name = f"{dataset['id']}_{layer_name}"
+                        
+                        url = prepare_layer_url(base_url, layer_id)
+                        gdf = import_from_geojson_api(url, table_name)
+                        load_gdf_to_postgis(gdf, table_name, engine)
+                else:
+                    # Specific Mode: Import the single provided URL
+                    table_name = dataset['id'].lower().replace('-', '_')
+                    gdf = import_from_geojson_api(base_url, table_name)
+                    load_gdf_to_postgis(gdf, table_name, engine)
 
 if __name__ == "__main__":
     main()

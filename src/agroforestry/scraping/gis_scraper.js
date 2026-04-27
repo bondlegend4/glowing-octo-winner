@@ -205,23 +205,20 @@ export async function scrapeApiUrlFromDetailsPage(page, detailsUrl, source) {
 
             const foundData = [];
             for (const inputHandle of candidateInputs) {
-                const collectedData = await inputHandle.evaluate(el => ({
-                    label: el.shadowRoot?.querySelector('label')?.textContent.trim() || 'LABEL NOT FOUND',
-                    value: el.value || 'VALUE NOT FOUND'
-                }));
-                foundData.push(collectedData);
+                const val = await inputHandle.evaluate(el => el.value);
+                if (val) foundData.push(val);
             }
 
-            const geoJsonData = foundData.find(data => data.value.includes(pageSelectors.api_input_value_match));
-
-            if (geoJsonData) {
-                console.log(`SUCCESS: Found ${pageSelectors.api_input_value_match} data by searching the URL value.`);
-                return geoJsonData.value;
-            } else {
-                console.log('\n--- DEBUG: Inspecting contents of all found inputs: ---');
-                console.table(foundData);
-                console.log('--- END OF DEBUG DATA ---\n');
+            // If we find a clean FeatureServer root, prefer it for the importer's discovery logic
+            const rootService = foundData.find(url => url.endsWith('/FeatureServer') || url.endsWith('/FeatureServer/'));
+            if (rootService) {
+                console.log(`SUCCESS: Found root FeatureServer for discovery.`);
+                return rootService;
             }
+
+            // Fallback to the first GeoJSON specific link if no root is found
+            const geoJsonUrl = foundData.find(url => url.toLowerCase().includes('geojson'));
+            return geoJsonUrl || null;
         } catch (e) {
             console.warn('Primary method failed or timed out. Trying fallback...');
             // This catch block intentionally allows the code to proceed to the fallback
@@ -280,7 +277,7 @@ async function main() {
     try {
         const configData = await fs.readFile(jsonPath, 'utf-8');
         const config = JSON.parse(configData);
-        
+
         const sourcesToScrape = processSourceDefinitions(config);
 
         for (const source of sourcesToScrape) {
@@ -292,7 +289,7 @@ async function main() {
             console.log(`\n🚀 --- Scraping Dataset: ${source.search_term} --- 🚀`);
             browser = await puppeteer.launch({ headless: "new" });
             const page = await browser.newPage();
-            
+
             const detailsUrl = await findAndScrapeUrl(page, source);
 
             if (detailsUrl) {
@@ -309,7 +306,7 @@ async function main() {
             } else {
                 console.log(`❌ FAILED STAGE 1 for "${source.search_term}".`);
             }
-            
+
             await browser.close();
             console.log(`\n--- FINISHED: ${source.search_term} ---\n`);
         }
