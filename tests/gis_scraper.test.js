@@ -10,6 +10,7 @@ import {
     findAndScrapeUrl,
     scrapeApiUrlFromDetailsPage
 } from '../src/agroforestry/scraping/gis_scraper.js';
+import path from 'path';
 
 // A mock source configuration object to be used in tests
 const mockBaseConfig = {
@@ -291,5 +292,51 @@ describe('Complete Scraper Integration', () => {
         expect(updatedDataset.imported).toBe(true);
 
         await testPage.close();
+    });
+});
+
+
+describe('GIS Scraper Integration Tests', () => {
+    let browser;
+    let testConfig;
+    const testFilePath = path.resolve('tests/test_sources.json');
+    const tempFilePath = path.resolve('tests/test_sources_temp.json');
+
+    beforeAll(async () => {
+        // Load the actual test source file
+        const fileContent = await fs.readFile(testFilePath, 'utf-8');
+        testConfig = JSON.parse(fileContent);
+
+        // Create a temporary copy to avoid mutating the original during tests
+        await fs.writeFile(tempFilePath, JSON.stringify(testConfig, null, 4));
+        browser = await puppeteer.launch({ headless: "new" });
+    });
+
+    afterAll(async () => {
+        if (browser) await browser.close();
+        // Clean up temporary test file
+        try { await fs.unlink(tempFilePath); } catch (e) {}
+    });
+
+    it('should successfully discover and save a GeoJSON URL from the manifest', async () => {
+        const sources = processSourceDefinitions(testConfig);
+        const sourceToScrape = sources[0]; // Testing the first dataset in test_sources.json
+        const page = await browser.newPage();
+
+        // Stage 1: Find the details page
+        const detailsUrl = await findAndScrapeUrl(page, sourceToScrape);
+        expect(detailsUrl).not.toBeNull();
+
+        // Stage 2: Extract the FeatureServer/GeoJSON link
+        const apiUrl = await scrapeApiUrlFromDetailsPage(page, detailsUrl, sourceToScrape);
+        expect(apiUrl).toContain('FeatureServer');
+
+        // Stage 3: Save and Verify
+        await saveUrlToJson(tempFilePath, sourceToScrape.id, apiUrl);
+        const updatedData = JSON.parse(await fs.readFile(tempFilePath, 'utf-8'));
+        const dataset = updatedData.source_definitions[0].categories[0].datasets[0];
+        
+        expect(dataset.scraped_url).toBe(apiUrl);
+        expect(dataset.imported).toBe(true);
     });
 });

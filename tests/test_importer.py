@@ -106,7 +106,26 @@ class TestImporterIntegration(unittest.TestCase):
                     url = ds.get('scraped_url', '')
                     if url:
                         self.assertTrue(url.startswith('http'))
+    
+    def test_database_connection_real(self):
+        """Verifies actual connectivity to the dev_agro database."""
+        engine = get_db_engine()
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text("SELECT version();")).fetchone()
+                self.assertIn("PostgreSQL", result[0])
+        except Exception as e:
+            self.fail(f"Could not connect to development database: {e}")
 
+    def test_live_api_fetch_real(self):
+        """Tests actual network fetch and GDF creation for a small dataset."""
+        # Using a reliable, small NYS dataset for integration testing
+        test_url = "https://services6.arcgis.com/DZHaqZm9cxOD4CWM/arcgis/rest/services/Ecological_Regions/FeatureServer/7/query?where=1%3D1&outFields=*&f=geojson"
+        gdf = import_from_geojson_api(test_url, "test_integration_table")
+        
+        self.assertIsNotNone(gdf)
+        self.assertFalse(gdf.empty)
+        self.assertEqual(gdf.crs.to_epsg(), 4326)
 
 class TestImporterResilience(unittest.TestCase):
 

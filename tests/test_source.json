@@ -1,0 +1,26 @@
+{
+    "base_config": {
+        "base_search_url": "https://data.gis.ny.gov/search?categories=%2Fcategories%2F",
+        "state": "NY",
+        "source_type": "rest_api"
+    },
+    "source_definitions": [
+        {
+            "name": "Dev_Test_Catalog",
+            "categories": [
+                {
+                    "category": "test_category",
+                    "datasets": [
+                        {
+                            "id": "test_dataset_unconsolidated",
+                            "purpose": "validation",
+                            "search_term": "Unconsolidated Aquifers 250K _ Upstate NY",
+                            "imported": false,
+                            "scraped_url": ""
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
