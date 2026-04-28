@@ -12,7 +12,16 @@ pip install -r requirements.txt
 # Run project
 
 ```python
-python -m src.services.local_data_importer
+python3 src/agroforestry/data/importer.py
+```
+
+# Test project
+## In development environment
+pytest --run-stratch
+
+## In production enviromnent
+```python
+python -m unittest ./tests/test_importer.py
 ```
 
 This project is a Node.js web scraper designed to extract API links for datasets from the New York State GIS data portal. It uses **Puppeteer** for browser automation and **Jest** for testing.

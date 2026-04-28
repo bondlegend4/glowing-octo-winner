@@ -14,6 +14,7 @@ from src.agroforestry.data.importer import (
 
 class TestImporterIntegration(unittest.TestCase):
     def setUp(self):
+        load_dotenv('.env.production')
         # Sample data for testing transformation and loading logic
         self.sample_gdf = gpd.GeoDataFrame(
             {'id': ['test_1']},
