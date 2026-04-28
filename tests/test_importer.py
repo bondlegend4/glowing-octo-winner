@@ -146,15 +146,15 @@ class TestImporterResilience(unittest.TestCase):
             get_db_engine()
 
     def test_naming_safety_logic(self):
-        """Verify that table names are truncated to 63 chars to avoid Postgres errors."""
+        """Verify that table names are truncated to 50 chars for index name safety."""
         long_id = "nys_unconsolidated_aquifers"
         long_layer = "confined_unconsolidated_aquifers_upper_hudson_valley_250k"
         
         safe_name = get_safe_table_name(long_id, long_layer)
         
-        self.assertLessEqual(len(safe_name), 63)
+        # Assert against the new 50-character limit
+        self.assertLessEqual(len(safe_name), 50)
         self.assertTrue(safe_name.startswith("nys_unconsolidated"))
-        # Ensure it's lowercase and uses underscores
         self.assertEqual(safe_name, safe_name.lower().replace('-', '_'))
 
 if __name__ == '__main__':
