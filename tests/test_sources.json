@@ -2,19 +2,47 @@
     "base_config": {
         "base_search_url": "https://data.gis.ny.gov/search?categories=%2Fcategories%2F",
         "state": "NY",
-        "source_type": "rest_api"
+        "source_type": "rest_api",
+        "selectors": {
+            "catalog_container": "arcgis-hub-catalog",
+            "gallery_card": {
+                "query": "arcgis-hub-entity-card[data-test='{SEARCH_TERM}']",
+                "path": ["arcgis-hub-gallery", "arcgis-hub-gallery-layout-list"]
+            },
+            "more_results_button": {
+                "query": "div.gallery-list-footer calcite-button",
+                "path": ["arcgis-hub-gallery"]
+            },
+            "results_count": {
+                "query": "p.results-count",
+                "path": ["arcgis-hub-gallery"]
+            },
+            "card_url": {
+                "query": "h3.title a",
+                "path": ["arcgis-hub-card"]
+            },
+            "details_page": {
+                "info_button_xpath": "//button[contains(., 'About')]",
+                "details_link_xpath": "//div[@class='side-panel-ref']//a[contains(., 'View Full Details')]",
+                "api_resources_button": "button[data-test='apiResources']",
+                "api_container_xpath": "//div[contains(@class, 'content-action-card') and .//button[@data-test='apiResources']]",
+                "api_input_selector": "arcgis-copyable-input",
+                "api_input_value_match": "geojson",
+                "fallback_api_selector": "a[data-test='dataSource']"
+            }
+        }
     },
     "source_definitions": [
         {
-            "name": "Dev_Test_Catalog",
+            "name": "NYS_GIS_Water_Catalog",
             "categories": [
                 {
-                    "category": "test_category",
+                    "category": "water",
                     "datasets": [
                         {
-                            "id": "test_dataset_unconsolidated",
-                            "purpose": "validation",
-                            "search_term": "Unconsolidated Aquifers 250K _ Upstate NY",
+                            "id": "nys_dams_test",
+                            "purpose": "infrastructure",
+                            "search_term": "Dams",
                             "imported": false,
                             "scraped_url": ""
                         }

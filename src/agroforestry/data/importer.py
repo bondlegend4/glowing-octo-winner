@@ -5,7 +5,7 @@ import hashlib
 import requests
 import geopandas as gpd
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 # Enhanced logging configuration to include the function name
 logging.basicConfig(
