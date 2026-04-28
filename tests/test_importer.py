@@ -1,7 +1,7 @@
 import os
 import unittest
-from unittest.mock import patch, MagicMock, mock_open
 import geopandas as gpd
+from dotenv import load_dotenv
 from shapely.geometry import Point
 from sqlalchemy import create_engine, text
 from src.agroforestry.data.importer import (
@@ -11,6 +11,7 @@ from src.agroforestry.data.importer import (
     import_from_geojson_api,
     get_safe_table_name
 )
+from unittest.mock import patch, MagicMock, mock_open
 
 class TestImporterIntegration(unittest.TestCase):
     def setUp(self):
