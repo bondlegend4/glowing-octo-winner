@@ -15,12 +15,6 @@ from unittest.mock import patch, MagicMock, mock_open
 
 class TestImporterIntegration(unittest.TestCase):
     def setUp(self):
-        # 1. Respect existing environment (e.g., from pytest.ini or shell)
-        # 2. Fallback to .env.production ONLY if DB_USER is not already set
-        if not os.environ.get('DB_USER'):
-            from dotenv import load_dotenv
-            load_dotenv('.env.production')
-        
         # Verify which environment is active for the user's peace of mind
         db_name = os.environ.get('DB_NAME', 'UNKNOWN')
         print(f"\n[DEBUG] Running test against database: {db_name}")
@@ -114,7 +108,7 @@ class TestImporterIntegration(unittest.TestCase):
                         self.assertTrue(url.startswith('http'))
     
     def test_database_connection_real(self):
-        """Verifies actual connectivity to the dev_agro database."""
+        """Verifies actual connectivity."""
         engine = get_db_engine()
         try:
             with engine.connect() as conn:

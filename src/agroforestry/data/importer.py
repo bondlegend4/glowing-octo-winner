@@ -15,6 +15,16 @@ logging.basicConfig(
 logger = logging.getLogger("AgroImporter")
 
 def get_db_engine():
+    """
+    Constructs a SQLAlchemy engine. 
+    Now includes a fallback to load .env.production if standard variables are missing.
+    """
+    # Fallback logic: If DB_USER isn't in the environment, try loading the production file
+    if not os.environ.get('DB_USER'):
+        load_dotenv() # Tries default .env
+        if not os.environ.get('DB_USER'):
+            # If still missing, try the specific production file
+            load_dotenv('.env.production')
     try:
         db_user = os.environ['DB_USER']
         db_pass = os.environ['DB_PASS']
