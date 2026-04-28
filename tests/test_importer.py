@@ -15,6 +15,7 @@ from unittest.mock import patch, MagicMock, mock_open
 
 class TestImporterIntegration(unittest.TestCase):
     def setUp(self):
+        # Load environment variables from your .env for real connection testing
         load_dotenv('.env.production')
         # Sample data for testing transformation and loading logic
         self.sample_gdf = gpd.GeoDataFrame(
@@ -22,10 +23,6 @@ class TestImporterIntegration(unittest.TestCase):
             geometry=[Point(-76.5, 43.4)], # Oswego, NY area
             crs="EPSG:4326"
         )
-        # Load environment variables from your .env for real connection testing
-        from dotenv import load_dotenv
-        load_dotenv()
-
     # --- ENVIRONMENT & DEPENDENCY TESTS ---
     
     def test_geoalchemy2_presence(self):
