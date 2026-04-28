@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch, MagicMock, mock_open
 import geopandas as gpd
 from shapely.geometry import Point
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from src.agroforestry.data.importer import (
     get_db_engine,
     load_source_manifest,
