@@ -46,15 +46,23 @@ def load_source_manifest(path):
         logger.error(f"Could not load manifest at {path}: {e}")
         raise
 
-def get_safe_table_name(base_id, layer_name):
-    """Generates a PostgreSQL-safe table name (max 63 chars)."""
+def get_safe_table_name(base_id, layer_name=""):
+    """
+    Generates a PostgreSQL-safe table name. 
+    Targets 50 chars to leave room for auto-generated PostGIS index names (idx_..._geometry).
+    """
     clean_base = base_id.lower().replace('-', '_')
     clean_layer = layer_name.lower().replace(' ', '_').replace('-', '_')
-    full_name = f"{clean_base}_{clean_layer}"
-    if len(full_name) <= 63:
+    
+    full_name = f"{clean_base}_{clean_layer}" if layer_name else clean_base
+    
+    # Standard PostgreSQL limit is 63, but we target 50 for index safety
+    if len(full_name) <= 50:
         return full_name
-    suffix_hash = hashlib.md5(clean_layer.encode()).hexdigest()[:6]
-    return f"{full_name[:56]}_{suffix_hash}"
+        
+    suffix_hash = hashlib.md5(full_name.encode()).hexdigest()[:6]
+    # Truncate to 43 chars + 1 underscore + 6 hash chars = 50 total
+    return f"{full_name[:43]}_{suffix_hash}"
 
 def get_layers_from_service(base_url):
     """
@@ -130,30 +138,24 @@ def main(manifest_path=None):
     manifest = load_source_manifest(manifest_path)
     engine = get_db_engine()
     
-    for definition in manifest.get('source_definitions', []):
+for definition in manifest.get('source_definitions', []):
         for category in definition.get('categories', []):
             for dataset in category.get('datasets', []):
                 if not dataset.get('imported'): continue
                 
                 base_url = dataset.get('scraped_url', '')
                 if "FeatureServer" in base_url and "/query" not in base_url:
-                    # Discovery Mode: Fetch all layers in the service
                     layers = get_layers_from_service(base_url)
                     for layer in layers:
-                        layer_id = layer['id']
-                        layer_name = layer['name']
-                        
-                        # Use the helper to generate a safe name
-                        table_name = get_safe_table_name(dataset['id'], layer_name)
-                        
-                        url = prepare_layer_url(base_url, layer_id)
+                        # Use the 50-char safe naming for discovered layers
+                        table_name = get_safe_table_name(dataset['id'], layer['name'])
+                        url = prepare_layer_url(base_url, layer['id'])
                         gdf = import_from_geojson_api(url, table_name)
-                        
                         if gdf is not None:
                             load_gdf_to_postgis(gdf, table_name, engine)
                 else:
-                    # Specific Mode: Import the single provided URL
-                    table_name = dataset['id'].lower().replace('-', '_')
+                    # UPDATED: Use get_safe_table_name here too for Specific Mode
+                    table_name = get_safe_table_name(dataset['id'])
                     gdf = import_from_geojson_api(base_url, table_name)
                     load_gdf_to_postgis(gdf, table_name, engine)
 
