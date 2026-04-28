@@ -138,7 +138,7 @@ def main(manifest_path=None):
     manifest = load_source_manifest(manifest_path)
     engine = get_db_engine()
     
-for definition in manifest.get('source_definitions', []):
+    for definition in manifest.get('source_definitions', []):
         for category in definition.get('categories', []):
             for dataset in category.get('datasets', []):
                 if not dataset.get('imported'): continue
