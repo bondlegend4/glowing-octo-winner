@@ -15,12 +15,19 @@ from unittest.mock import patch, MagicMock, mock_open
 
 class TestImporterIntegration(unittest.TestCase):
     def setUp(self):
-        # Load environment variables from your .env for real connection testing
-        load_dotenv('.env.production')
-        # Sample data for testing transformation and loading logic
+        # 1. Respect existing environment (e.g., from pytest.ini or shell)
+        # 2. Fallback to .env.production ONLY if DB_USER is not already set
+        if not os.environ.get('DB_USER'):
+            from dotenv import load_dotenv
+            load_dotenv('.env.production')
+        
+        # Verify which environment is active for the user's peace of mind
+        db_name = os.environ.get('DB_NAME', 'UNKNOWN')
+        print(f"\n[DEBUG] Running test against database: {db_name}")
+
         self.sample_gdf = gpd.GeoDataFrame(
             {'id': ['test_1']},
-            geometry=[Point(-76.5, 43.4)], # Oswego, NY area
+            geometry=[Point(-76.5, 43.4)],
             crs="EPSG:4326"
         )
     # --- ENVIRONMENT & DEPENDENCY TESTS ---
