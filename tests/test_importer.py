@@ -135,9 +135,13 @@ class TestImporterResilience(unittest.TestCase):
         manifest = load_source_manifest(path)
         self.assertIn('source_definitions', manifest)
 
+    @patch('src.agroforestry.data.importer.load_dotenv') # Prevents the code from reading .env files during the test
     @patch.dict(os.environ, {}, clear=True)
-    def test_get_db_engine_missing_env(self):
+    def test_get_db_engine_missing_env(self, mock_load_dotenv):
         """Test that the importer fails gracefully if credentials are missing."""
+        # Force the mock to do nothing when called by the importer
+        mock_load_dotenv.return_value = None
+        
         with self.assertRaises(KeyError):
             get_db_engine()
 
