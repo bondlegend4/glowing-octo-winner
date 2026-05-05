@@ -97,11 +97,12 @@ class TestImporterIntegration(unittest.TestCase):
         self.assertEqual(layers[0]['name'], "Confined Aquifers")
 
     def test_manifest_url_validity(self):
-        """Ensure no malformed URLs exist in the source manifest."""
+        """Ensure no malformed URLs exist in the source manifest across all structures."""
         path = os.path.join('data', 'sources.json')
         manifest = load_source_manifest(path)
+        
         for definition in manifest['source_definitions']:
-            # Collect datasets from categories or direct datasets list
+            # Flexible collection same as importer.py
             datasets = definition.get('datasets', [])
             for cat in definition.get('categories', []):
                 datasets.extend(cat.get('datasets', []))
@@ -109,7 +110,7 @@ class TestImporterIntegration(unittest.TestCase):
             for ds in datasets:
                 url = ds.get('scraped_url', '')
                 if url:
-                    self.assertTrue(url.startswith('http'))
+                    self.assertTrue(url.startswith('http'), f"Invalid URL for {ds['id']}: {url}")
     
     def test_database_connection_real(self):
         """Verifies actual connectivity."""

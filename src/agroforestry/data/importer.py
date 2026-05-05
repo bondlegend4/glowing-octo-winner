@@ -139,11 +139,14 @@ def main(manifest_path=None):
     engine = get_db_engine()
     
     for definition in manifest.get('source_definitions', []):
+        # COLLECT DATASETS FLEXIBLY:
+        # 1. Start with any top-level datasets (like Land.com structure)
         datasets = definition.get('datasets', [])
+        # 2. Add any datasets nested inside categories (like GIS structure)
         for category in definition.get('categories', []):
             datasets.extend(category.get('datasets', []))
             for dataset in datasets:
-                if not dataset.get('imported'): continue   
+                if not dataset.get('imported'): continue
                 base_url = dataset.get('scraped_url', '')
                 if "FeatureServer" in base_url and "/query" not in base_url:
                     layers = get_layers_from_service(base_url)
