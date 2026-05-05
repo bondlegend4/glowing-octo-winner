@@ -11,38 +11,36 @@ import {
 puppeteer.use(StealthPlugin());
 
 /**
- * DISPATCHER: Routes tasks to the correct engine based on source type.
- * Exported for tests/scraper_dispatcher.test.js
+ * DISPATCHER: Routes tasks to engines.
+ * Structure: To add a new source, create a file in ./engines/ and register it here.
  */
 export async function runDispatcher(configData, engines = {}) {
     const browser = await puppeteer.launch({
         headless: "new",
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1920,1080']
     });
 
     try {
         for (const definition of configData.source_definitions) {
             const config = configData.configs[definition.type];
-            
-            // Flexible dataset collection for both GIS (categories) and Web (datasets)
-            const datasets = definition.datasets || definition.categories.flatMap(c => c.datasets);
+            const datasets = definition.datasets || definition.categories?.flatMap(c => c.datasets) || [];
 
             for (const dataset of datasets) {
                 if (dataset.imported) continue;
 
                 const page = await browser.newPage();
+                await page.setViewport({ width: 1920, height: 1080 });
+                // Robust User-Agent to match the viewport
+                await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36');
+
                 try {
+                    // Dispatcher Routing Logic
                     if (definition.type === 'arcgis_rest') {
-                        // Use the injected mock or the real handler
                         const handler = engines.gisEngine || handleGisScrape;
                         await handler(page, dataset, config);
                     } else if (definition.type === 'web_dom_land') {
                         const handler = engines.landEngine || handleLandScrape;
-                        const result = await handler(page, dataset, config);
-                        
-                        if (result && result.apiUrl) {
-                            await saveUrlToJson('./data/sources.json', dataset.id, result.apiUrl);
-                        }
+                        await handler(page, dataset, config);
                     }
                 } catch (err) {
                     console.error(`[Dispatcher] Failed ${dataset.id}:`, err);

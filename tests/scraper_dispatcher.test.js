@@ -13,16 +13,16 @@ describe('Scraper Dispatcher Unit Tests', () => {
         ]
     };
 
-    it('should correctly route "arcgis_rest" types to the GIS engine', async () => {
+    it('should correctly route "arcgis_rest" and prevent fallback side-effects', async () => {
         const gisSpy = jest.fn();
-        // Mocks the engine call within the dispatcher
-        await runDispatcher(mockManifest, { gisEngine: gisSpy });
+        const landSpy = jest.fn(); // Mocking both to prevent ERR_NAME_NOT_RESOLVED
+        
+        await runDispatcher(mockManifest, { 
+            gisEngine: gisSpy, 
+            landEngine: landSpy 
+        });
+        
         expect(gisSpy).toHaveBeenCalled();
-    });
-
-    it('should correctly route "web_dom_land" types to the Land engine', async () => {
-        const landSpy = jest.fn();
-        await runDispatcher(mockManifest, { landEngine: landSpy });
         expect(landSpy).toHaveBeenCalled();
     });
 });

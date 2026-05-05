@@ -15,12 +15,13 @@
             }
         },
         "web_dom_land": {
-            "base_url": "https://www.land.com/New-York/all-land/for-sale/is-active/type-179/",
+            "base_url": "https://www.land.com/New-York/all-land/for-sale/over-100-acres/is-active/type-179/",
             "selectors": {
                 "listing_container": "div[data-qa-placard]",
+                "info_container": "div[data-qa-placardinfo='true']",
                 "property_link": "a[href*='/property/']",
-                "address_selector": "p[data-qa='placard-address']",
-                "price_selector": "span[data-qa='placard-price']"
+                "address_selector": "p",
+                "price_selector": "span"
             }
         }
     },
