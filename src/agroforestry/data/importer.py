@@ -139,10 +139,11 @@ def main(manifest_path=None):
     engine = get_db_engine()
     
     for definition in manifest.get('source_definitions', []):
+        datasets = definition.get('datasets', [])
         for category in definition.get('categories', []):
-            for dataset in category.get('datasets', []):
-                if not dataset.get('imported'): continue
-                
+            datasets.extend(category.get('datasets', []))
+            for dataset in datasets:
+                if not dataset.get('imported'): continue   
                 base_url = dataset.get('scraped_url', '')
                 if "FeatureServer" in base_url and "/query" not in base_url:
                     layers = get_layers_from_service(base_url)

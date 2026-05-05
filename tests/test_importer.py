@@ -101,11 +101,15 @@ class TestImporterIntegration(unittest.TestCase):
         path = os.path.join('data', 'sources.json')
         manifest = load_source_manifest(path)
         for definition in manifest['source_definitions']:
-            for cat in definition['categories']:
-                for ds in cat['datasets']:
-                    url = ds.get('scraped_url', '')
-                    if url:
-                        self.assertTrue(url.startswith('http'))
+            # Collect datasets from categories or direct datasets list
+            datasets = definition.get('datasets', [])
+            for cat in definition.get('categories', []):
+                datasets.extend(cat.get('datasets', []))
+                
+            for ds in datasets:
+                url = ds.get('scraped_url', '')
+                if url:
+                    self.assertTrue(url.startswith('http'))
     
     def test_database_connection_real(self):
         """Verifies actual connectivity."""
