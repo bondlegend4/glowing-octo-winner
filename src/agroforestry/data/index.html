@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Agroforestry Engine - Data Explorer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        #map { height: 100vh; width: 100%; background: #242424; }
+        .legend { background: white; padding: 10px; line-height: 18px; color: #555; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.vectorgrid@1.3.0/dist/Leaflet.VectorGrid.bundled.js"></script>
+
+    <script>
+        // Initialize Map centered on Oswego, NY
+        const map = L.map('map').setView([43.45, -76.50], 11);
+
+        // Base Layer: Dark mode looks best for technical GIS data
+        //lightskin .tile.openstreetmap.org/{z}/{x}/{y}
+        const baseLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO'
+        }).addTo(map);
+
+        const overlayMaps = {};
+        const layerControl = L.control.layers(null, null, { collapsed: false }).addTo(map);
+
+        // Use the /tiles/catalog proxy path established in Caddy
+        const catalogUrl = 'https://tile.josesandoval0110.page/catalog';
+
+        async function loadMartinLayers() {
+            try {
+                const response = await fetch(catalogUrl);
+                const catalog = await response.json();
+
+                catalog.forEach(source => {
+                    const layerId = source.id;
+                    
+                    // Construct the Martin PBF URL
+                    const tileUrl = `https://tile.josesandoval0110.page/${layerId}/{z}/{x}/{y}.pbf`;
+
+                    // Define basic styling for the vector features
+                    const vectorTileOptions = {
+                        interactive: true,
+                        vectorTileLayerStyles: {
+                            // Style the geometry based on the table name
+                            [layerId]: function(properties, zoom) {
+                                return {
+                                    weight: 1,
+                                    color: getLayerColor(layerId),
+                                    opacity: 0.7,
+                                    fill: true,
+                                    fillOpacity: 0.2
+                                };
+                            }
+                        }
+                    };
+
+                    // Create the layer
+                    const layer = L.vectorGrid.protobuf(tileUrl, vectorTileOptions);
+                    
+                    // Add to UI control
+                    layerControl.addOverlay(layer, layerId);
+                });
+            } catch (err) {
+                console.error("Error loading Martin catalog:", err);
+            }
+        }
+
+        // Simple color router to distinguish data types
+        function getLayerColor(id) {
+            if (id.includes('water') || id.includes('wetlands')) return '#00d4ff';
+            if (id.includes('zoning') || id.includes('tax')) return '#ffeb3b';
+            if (id.includes('dams')) return '#ff5722';
+            if (id.includes('ecological')) return '#4caf50';
+            return '#ffffff'; // Default white for TIGER/Civil boundaries
+        }
+
+        loadMartinLayers();
+    </script>
+</body>
+</html>
